@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "count": 2,
+  "count": 3,
   "bookings": [
     {
       "id": "3fcf8ca8-8379-46a7-8350-842a49e73344",
@@ -37,6 +37,24 @@
       "confirmed_at_utc": null,
       "logged_at_utc": "2026-08-22T23:36:45.379627Z",
       "error_code": "AUTH_REQUIRED"
+    },
+    {
+      "id": "f94ab577-6696-4b0c-a6a2-962f71d48239",
+      "schedule_id": "autonomous-smoke-20260822",
+      "target_date": "2026-08-22",
+      "weekday": "Saturday",
+      "start_time": "17:30",
+      "end_time": "18:00",
+      "duration_minutes": 30,
+      "room": "Study Room 311B",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "outcome": "failed",
+      "attempt_count": 3,
+      "timezone": "America/Phoenix",
+      "created_at_utc": "2026-08-22T23:38:07.560894Z",
+      "confirmed_at_utc": null,
+      "logged_at_utc": "2026-08-22T23:54:49.731724Z",
+      "error_code": "UNKNOWN_RESULT"
     }
   ]
 }
