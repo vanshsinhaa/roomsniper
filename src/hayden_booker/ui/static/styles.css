@@ -13,8 +13,7 @@
   --bad: #ff6b6b;
   --unknown: #7f8b9c;
   --radius: 14px;
-  --font-sans: "Google Sans", "Google Sans Text", "Google Sans Display", "Product Sans",
-    system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Google Sans", "Mona Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Google Sans Code", "JetBrains Mono", "Cascadia Mono", ui-monospace,
     SFMono-Regular, Menlo, monospace;
   --glass: rgba(24, 29, 38, 0.62);

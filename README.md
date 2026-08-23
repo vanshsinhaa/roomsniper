@@ -78,7 +78,8 @@ school-ID secret, ASU sign-in, scheduled task, database, recent run activity, an
 plus the booking history with a detail card per occurrence, its attempt timeline, and
 **Add to Google Calendar** / `.ics` buttons. Sign-in health is judged by what the last real run
 observed, because the ASU/Duo session rides on session cookies that carry no expiry. The dashboard
-never books, submits, or reads any credential value.
+never books, submits, or reads any credential value. Its only outbound request is the Google
+Fonts stylesheet for Google Sans; offline it falls back to the local system font.
 
 ## Operations
 
