@@ -45,3 +45,29 @@ schedules:
       - "Study Room 311B"
       - "Study Room 311C"
     exact_time_required: true
+
+  - id: "sunday-release-test"
+    enabled: true
+    weekday: "sunday"
+    start_time: "13:00"
+    end_time: "15:00"
+    room_preferences:
+      - "Study Room 311A"
+      - "Study Room 311B"
+      - "Study Room 311C"
+      - "Study Room 336"
+      - "Study Room 342"
+      - "Study Room 351"
+      - "Study Room 353"
+      - "Study Room 355"
+      - "Study Room 357"
+      - "Study Room C13"
+      - "Study Room C15"
+      - "Study Room C17"
+      - "Study Room C19"
+      - "Study Room C38"
+      - "Study Room C40"
+      - "Study Room L52"
+      - "Study Room L54"
+      - "Study Room L56"
+    exact_time_required: true
