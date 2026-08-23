@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "count": 6,
+  "count": 7,
   "bookings": [
     {
       "id": "3fcf8ca8-8379-46a7-8350-842a49e73344",
@@ -109,6 +109,24 @@
       "confirmed_at_utc": null,
       "logged_at_utc": "2026-08-23T00:24:26.876573Z",
       "error_code": "NO_COMPLETE_INTERVAL"
+    },
+    {
+      "id": "7f5b524d-dcbc-42f8-b3c6-51c1c62d1fbe",
+      "schedule_id": "wednesday-1pm",
+      "target_date": "2026-08-26",
+      "weekday": "Wednesday",
+      "start_time": "13:00",
+      "end_time": "15:00",
+      "duration_minutes": 120,
+      "room": "Study Room 342",
+      "status": "CONFIRMED",
+      "outcome": "confirmed",
+      "attempt_count": 1,
+      "timezone": "America/Phoenix",
+      "created_at_utc": "2026-08-23T00:11:19.278244Z",
+      "confirmed_at_utc": "2026-08-23T00:24:47.562372Z",
+      "logged_at_utc": "2026-08-23T00:24:47.562372Z",
+      "error_code": null
     }
   ]
 }
