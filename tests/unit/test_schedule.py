@@ -36,6 +36,19 @@ def test_due_run_prefers_newly_released_occurrence() -> None:
     ) == date(2026, 8, 31)
 
 
+def test_due_run_waits_when_horizon_date_is_not_released() -> None:
+    offered = [date(2026, 8, 24), date(2026, 8, 25)]
+    assert (
+        resolve_target_date(
+            offered,
+            monday_rule(),
+            today=date(2026, 8, 24),
+            prefer_newly_released=True,
+        )
+        is None
+    )
+
+
 def test_processed_and_out_of_horizon_dates_are_skipped() -> None:
     offered = [date(2026, 8, 24), date(2026, 8, 31)]
     result = resolve_target_date(

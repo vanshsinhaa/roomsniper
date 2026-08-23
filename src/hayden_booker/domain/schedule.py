@@ -26,7 +26,10 @@ def resolve_target_date(
     )
     if not candidates:
         return None
-    return candidates[-1] if prefer_newly_released else candidates[0]
+    if prefer_newly_released:
+        horizon_date = today + timedelta(days=booking_horizon_days)
+        return horizon_date if horizon_date in candidates else None
+    return candidates[0]
 
 
 def _weekday_number(name: str) -> int:
