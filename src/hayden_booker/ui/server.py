@@ -26,6 +26,9 @@ _STATIC_FILES = {
     "/static/styles.css": "text/css; charset=utf-8",
 }
 _OCCURRENCE_ID = re.compile(r"^[A-Za-z0-9-]{1,64}$")
+# A cross-origin page can submit a form POST, but it cannot set a custom header
+# without a preflight this server never approves.
+_WRITE_HEADER = "X-Hayden-Dashboard"
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
@@ -53,6 +56,34 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "Unknown booking."})
         except Exception as exc:  # pragma: no cover - surfaced in the dashboard banner
             self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": f"{type(exc).__name__}"})
+
+    def do_POST(self) -> None:
+        """The only write path: marking an occurrence as humanly reviewed."""
+        if not self._host_allowed():
+            self._send_json(HTTPStatus.FORBIDDEN, {"error": "Only local requests are served."})
+            return
+        if self.headers.get(_WRITE_HEADER) is None:
+            self._send_json(HTTPStatus.FORBIDDEN, {"error": "Missing dashboard header."})
+            return
+        path = urlsplit(self.path).path
+        acknowledge = re.fullmatch(r"/api/bookings/([^/]+)/acknowledge", path)
+        if not acknowledge:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
+            return
+        try:
+            occurrence_id = _validated_id(acknowledge.group(1))
+            with _repository() as repository:
+                repository.acknowledge(occurrence_id)
+                payload = history.booking_detail(
+                    repository, occurrence_id, timezone=self._timezone()
+                )
+        except KeyError:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "Unknown booking."})
+            return
+        except Exception as exc:  # pragma: no cover - surfaced in the dashboard banner
+            self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": f"{type(exc).__name__}"})
+            return
+        self._send_json(HTTPStatus.OK, payload)
 
     def log_message(self, format: str, *args: Any) -> None:
         return

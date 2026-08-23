@@ -217,6 +217,27 @@ class ReservationRepository:
         ).fetchall()
         return [_occurrence_from_row(row) for row in rows]
 
+    def acknowledge(self, occurrence_id: str) -> ReservationOccurrence:
+        """Record that a human reviewed this occurrence.
+
+        The status is deliberately left alone: acknowledgement silences the
+        dashboard, it must never re-open an occurrence for automatic submission.
+        """
+        now = _utc_now()
+        with self.connection:
+            cursor = self.connection.execute(
+                """
+                UPDATE reservation_occurrences
+                SET acknowledged_at_utc = COALESCE(acknowledged_at_utc, ?)
+                WHERE id = ?
+                """,
+                (now, occurrence_id),
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(occurrence_id)
+            self.add_event(occurrence_id, "acknowledged", details={"source": "manual_review"})
+        return self.get(occurrence_id)
+
     def list_events(self, occurrence_id: str) -> list[AttemptEvent]:
         rows = self.connection.execute(
             """
@@ -322,5 +343,8 @@ def _occurrence_from_row(row: sqlite3.Row) -> ReservationOccurrence:
         ),
         last_error_summary=(
             str(row["last_error_summary"]) if row["last_error_summary"] is not None else None
+        ),
+        acknowledged_at_utc=_parse_utc(
+            str(row["acknowledged_at_utc"]) if row["acknowledged_at_utc"] is not None else None
         ),
     )

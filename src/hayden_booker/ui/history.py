@@ -78,6 +78,8 @@ def booking_payload(occurrence: ReservationOccurrence, *, zone: ZoneInfo) -> dic
         "confirmation_reference": occurrence.confirmation_reference,
         "last_error_code": occurrence.last_error_code,
         "last_error_summary": occurrence.last_error_summary,
+        "acknowledged_at_utc": _iso(occurrence.acknowledged_at_utc),
+        "acknowledged": occurrence.acknowledged_at_utc is not None,
         "timezone": str(zone),
         "start_local": start_local.isoformat(),
         "end_local": end_local.isoformat(),

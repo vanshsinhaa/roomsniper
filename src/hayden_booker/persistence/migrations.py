@@ -45,6 +45,12 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
         );
         """,
     ),
+    (
+        2,
+        """
+        ALTER TABLE reservation_occurrences ADD COLUMN acknowledged_at_utc TEXT;
+        """,
+    ),
 )
 
 

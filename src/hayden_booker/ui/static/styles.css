@@ -687,6 +687,17 @@ table.bookings {
   background: color-mix(in srgb, var(--bad) 10%, transparent);
 }
 
+.badge.reviewed {
+  margin-left: 6px;
+  color: var(--muted);
+  border-style: dashed;
+}
+
+/* An acknowledged failure keeps its status, but stops shouting. */
+.badge[data-acknowledged="true"] {
+  opacity: 0.62;
+}
+
 .empty {
   padding: 28px;
   text-align: center;

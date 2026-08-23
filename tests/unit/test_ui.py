@@ -154,6 +154,68 @@ def test_ics_document_uses_utc_instants(environment: Path) -> None:
     assert "SUMMARY:Hayden Library - Study Room 311A" in document
 
 
+def seed_manual_review() -> str:
+    from hayden_booker.config import database_path
+
+    repository = ReservationRepository(connect(database_path()))
+    occurrence = repository.ensure_occurrence(
+        OccurrenceKey(
+            schedule_id="smoke-test",
+            target_date=date(2026, 8, 22),
+            start_time="17:30",
+            end_time="18:00",
+        )
+    ).occurrence
+    repository.update_status(
+        occurrence.id,
+        AttemptStatus.MANUAL_REVIEW_REQUIRED,
+        room="Study Room 311B",
+        error_code="UNKNOWN_RESULT",
+        error_summary="The final page did not contain a known signal.",
+    )
+    repository.connection.close()
+    return occurrence.id
+
+
+def test_unreviewed_occurrence_raises_attention(environment: Path) -> None:
+    seed_manual_review()
+    status = health.build_status(environment)
+    database = next(check for check in status["checks"] if check["key"] == "database")
+    assert database["state"] == "attention"
+    assert "manual review" in database["detail"]
+
+
+def test_acknowledgement_clears_attention_without_unblocking_submission(environment: Path) -> None:
+    from hayden_booker.config import database_path
+
+    occurrence_id = seed_manual_review()
+    repository = ReservationRepository(connect(database_path()))
+    acknowledged = repository.acknowledge(occurrence_id)
+    decision = repository.begin_submission(
+        occurrence_id, "Study Room 311B", safety_timeout_minutes=15
+    )
+    repository.connection.close()
+
+    assert acknowledged.acknowledged_at_utc is not None
+    assert acknowledged.status is AttemptStatus.MANUAL_REVIEW_REQUIRED
+    assert decision.allowed is False, "acknowledgement must not re-open automatic submission"
+
+    status = health.build_status(environment)
+    database = next(check for check in status["checks"] if check["key"] == "database")
+    assert database["state"] == "ok"
+
+
+def test_acknowledgement_is_idempotent(environment: Path) -> None:
+    from hayden_booker.config import database_path
+
+    occurrence_id = seed_manual_review()
+    repository = ReservationRepository(connect(database_path()))
+    first = repository.acknowledge(occurrence_id)
+    second = repository.acknowledge(occurrence_id)
+    repository.connection.close()
+    assert first.acknowledged_at_utc == second.acknowledged_at_utc
+
+
 def serve(config_path: Path) -> Any:
     server = create_server(config_path, host="127.0.0.1", port=0)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -182,6 +244,28 @@ def test_dashboard_endpoints_serve_locally(environment: Path) -> None:
         ) as response:
             assert response.headers["Content-Type"].startswith("text/calendar")
             assert b"BEGIN:VCALENDAR" in response.read()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_acknowledge_endpoint_requires_the_dashboard_header(environment: Path) -> None:
+    occurrence_id = seed_manual_review()
+    server = serve(environment)
+    port = server.server_address[1]
+    path = f"/api/bookings/{occurrence_id}/acknowledge"
+    try:
+        forged = HTTPConnection("127.0.0.1", port, timeout=5)
+        forged.request("POST", path, headers={"Host": "127.0.0.1"})
+        assert forged.getresponse().status == 403, "a cross-origin form POST must be rejected"
+        forged.close()
+
+        allowed = HTTPConnection("127.0.0.1", port, timeout=5)
+        allowed.request("POST", path, headers={"Host": "127.0.0.1", "X-Hayden-Dashboard": "1"})
+        response = allowed.getresponse()
+        assert response.status == 200
+        assert json.loads(response.read())["acknowledged"] is True
+        allowed.close()
     finally:
         server.shutdown()
         server.server_close()

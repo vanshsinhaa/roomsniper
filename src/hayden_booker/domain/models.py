@@ -65,3 +65,4 @@ class ReservationOccurrence(BaseModel):
     confirmation_reference: str | None
     last_error_code: str | None
     last_error_summary: str | None
+    acknowledged_at_utc: datetime | None = None

@@ -276,7 +276,12 @@ def _scheduler_check(config: AppConfig | None) -> Check:
 
 def _database_check() -> tuple[Check, dict[str, Any]]:
     path = database_path()
-    summary: dict[str, Any] = {"total": 0, "by_status": {}, "last_updated_utc": None}
+    summary: dict[str, Any] = {
+        "total": 0,
+        "by_status": {},
+        "needs_review": 0,
+        "last_updated_utc": None,
+    }
     if not path.exists():
         return (
             Check(
@@ -293,6 +298,16 @@ def _database_check() -> tuple[Check, dict[str, Any]]:
         rows = connection.execute(
             "SELECT status, COUNT(*) FROM reservation_occurrences GROUP BY status"
         ).fetchall()
+        unreviewed = connection.execute(
+            """
+            SELECT COUNT(*) FROM reservation_occurrences
+            WHERE status IN (?, ?) AND acknowledged_at_utc IS NULL
+            """,
+            (
+                AttemptStatus.MANUAL_REVIEW_REQUIRED.value,
+                AttemptStatus.UNKNOWN_RESULT.value,
+            ),
+        ).fetchone()
         latest = connection.execute(
             "SELECT MAX(updated_at_utc) FROM reservation_occurrences"
         ).fetchone()
@@ -306,9 +321,8 @@ def _database_check() -> tuple[Check, dict[str, Any]]:
     summary["by_status"] = by_status
     summary["total"] = sum(by_status.values())
     summary["last_updated_utc"] = latest[0] if latest else None
-    needs_review = by_status.get(AttemptStatus.MANUAL_REVIEW_REQUIRED.value, 0) + by_status.get(
-        AttemptStatus.UNKNOWN_RESULT.value, 0
-    )
+    needs_review = int(unreviewed[0]) if unreviewed else 0
+    summary["needs_review"] = needs_review
     if needs_review:
         return (
             Check(

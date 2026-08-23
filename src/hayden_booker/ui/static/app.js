@@ -315,8 +315,14 @@ function renderBookings() {
           el("span", {
             className: "badge",
             text: humanStatus(booking.status),
-            attrs: { "data-outcome": booking.outcome },
+            attrs: {
+              "data-outcome": booking.outcome,
+              "data-acknowledged": String(Boolean(booking.acknowledged)),
+            },
           }),
+          booking.acknowledged
+            ? el("span", { className: "badge reviewed", text: "Reviewed" })
+            : null,
         ]),
       );
       row.appendChild(el("td", { className: "right", text: String(booking.attempt_count) }));
@@ -348,6 +354,33 @@ async function openDrawer(id) {
 function closeDrawer() {
   $("drawer").classList.add("hidden");
   $("scrim").classList.add("hidden");
+}
+
+function needsReview(booking) {
+  const flagged = booking.status === "MANUAL_REVIEW_REQUIRED" || booking.status === "UNKNOWN_RESULT";
+  return flagged && !booking.acknowledged;
+}
+
+function acknowledgeButton(booking) {
+  const button = el("button", { className: "button", text: "Mark reviewed" });
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    button.textContent = "Marking…";
+    try {
+      const response = await fetch(
+        `/api/bookings/${encodeURIComponent(booking.id)}/acknowledge`,
+        { method: "POST", headers: { "X-Hayden-Dashboard": "1" } },
+      );
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      const updated = await response.json();
+      $("drawer-body").replaceChildren(...renderDetail(updated));
+      refresh();
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = `Failed: ${error.message}`;
+    }
+  });
+  return button;
 }
 
 function renderDetail(booking) {
@@ -383,10 +416,12 @@ function renderDetail(booking) {
       text: "Download .ics",
       attrs: { href: booking.calendar.ics_path },
     }),
+    needsReview(booking) ? acknowledgeButton(booking) : null,
   ]);
 
   const rows = [
     ["Status", humanStatus(booking.status)],
+    ["Reviewed", booking.acknowledged ? formatStamp(booking.acknowledged_at_utc) : "Not yet"],
     ["Schedule", booking.schedule_id],
     ["Duration", `${booking.duration_minutes} minutes`],
     ["Attempts", String(booking.attempt_count)],

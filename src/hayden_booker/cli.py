@@ -362,6 +362,28 @@ def ui_command(
         typer.echo("Dashboard stopped.")
 
 
+@app.command("acknowledge")
+def acknowledge_command(
+    occurrence_id: Annotated[str, typer.Argument(help="Occurrence ID shown by `history`.")],
+) -> None:
+    """Record that an occurrence was reviewed manually so the dashboard stops flagging it."""
+    repository = ReservationRepository(connect(database_path()))
+    try:
+        occurrence = repository.acknowledge(occurrence_id)
+    except KeyError:
+        _fail(
+            "UNKNOWN_OCCURRENCE",
+            f"No occurrence has ID {occurrence_id}.",
+            ExitCode.CONFIG_INVALID,
+            "Run `hayden-booker history` to list occurrence IDs.",
+        )
+    typer.echo(
+        f"Acknowledged {occurrence.target_date.isoformat()} "
+        f"{occurrence.start_time}-{occurrence.end_time} ({occurrence.status.value})."
+    )
+    typer.echo("The status is unchanged, so automatic resubmission stays blocked.")
+
+
 @app.command("doctor")
 def doctor_command(ctx: typer.Context) -> None:
     """Check runtime, Chromium, configuration, lock, secret, and authentication."""
