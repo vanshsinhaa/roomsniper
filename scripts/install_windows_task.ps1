@@ -23,7 +23,12 @@ $triggerAt = [datetime]::ParseExact(
 $arguments = "--config `"$resolvedConfig`" run --due --live"
 $action = New-ScheduledTaskAction -Execute $Executable -Argument $arguments -WorkingDirectory (Split-Path $resolvedConfig)
 $trigger = New-ScheduledTaskTrigger -Daily -At $triggerAt
-$settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -WakeToRun -StartWhenAvailable
+$settings = New-ScheduledTaskSettingsSet `
+    -MultipleInstances IgnoreNew `
+    -WakeToRun `
+    -StartWhenAvailable `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
 
 Register-ScheduledTask `
