@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "count": 4,
+  "count": 5,
   "bookings": [
     {
       "id": "3fcf8ca8-8379-46a7-8350-842a49e73344",
@@ -73,6 +73,24 @@
       "confirmed_at_utc": "2026-08-23T00:06:32.862909Z",
       "logged_at_utc": "2026-08-23T00:06:32.862909Z",
       "error_code": null
+    },
+    {
+      "id": "13df737b-031f-4c07-95e7-27d60d49998b",
+      "schedule_id": "monday-2pm",
+      "target_date": "2026-08-24",
+      "weekday": "Monday",
+      "start_time": "14:00",
+      "end_time": "15:00",
+      "duration_minutes": 60,
+      "room": null,
+      "status": "NO_AVAILABILITY",
+      "outcome": "failed",
+      "attempt_count": 0,
+      "timezone": "America/Phoenix",
+      "created_at_utc": "2026-08-23T00:11:13.207964Z",
+      "confirmed_at_utc": null,
+      "logged_at_utc": "2026-08-23T00:24:15.856407Z",
+      "error_code": "NO_COMPLETE_INTERVAL"
     }
   ]
 }
