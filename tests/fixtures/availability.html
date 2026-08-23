@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head><title>Hayden availability</title></head>
+<body>
+  <h1>Hayden Library Study Rooms</h1>
+  <label for="date">Date</label>
+  <select id="date" name="date">
+    <option value="2026-08-24">Monday, August 24, 2026</option>
+    <option value="2026-08-25">Tuesday, August 25, 2026</option>
+  </select>
+  <button type="button">Show Availability</button>
+  <form>
+    <fieldset>
+      <legend>Study Room 311A</legend>
+      <label><input type="checkbox">01:30 PM - 02:00 PM</label>
+      <label><input type="checkbox">02:00 PM - 02:30 PM</label>
+      <label><input type="checkbox">02:30 PM - 03:00 PM</label>
+      <label><input type="checkbox">03:00 PM - 03:30 PM</label>
+    </fieldset>
+    <fieldset>
+      <legend>Study Room 311B</legend>
+      <label><input type="checkbox">01:30 PM - 02:00 PM</label>
+      <label><input type="checkbox" disabled>02:00 PM - 02:30 PM</label>
+    </fieldset>
+    <button type="button">Submit Times</button>
+  </form>
+</body>
+</html>
