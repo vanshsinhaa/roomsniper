@@ -81,6 +81,17 @@ observed, because the ASU/Duo session rides on session cookies that carry no exp
 never books, submits, or reads any credential value. Its only outbound request is the Google
 Fonts stylesheet for Google Sans; offline it falls back to the local system font.
 
+Keep it running across logons with an opt-in scheduled task, after reviewing the command:
+
+```powershell
+.\scripts\install_windows_ui_task.ps1 -Port 8787
+```
+
+It launches the dashboard through `pythonw.exe`, so no console window stays open, restarts it
+if it exits, and lifts the default task execution time limit. Remove it with
+`.\scripts\remove_windows_task.ps1 -TaskName "Hayden Room Booker UI"`. The booking runs stay on
+their own daily task; the dashboard task only serves the read-only views.
+
 ## Operations
 
 ```powershell
