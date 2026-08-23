@@ -1,0 +1,48 @@
+SAMPLE_CONFIG = """version: 1
+timezone: "America/Phoenix"
+live_booking_enabled: false
+
+libcal:
+  base_url: "https://asu.libcal.com"
+  accessible_booking_path: "/r/accessible?lid=13858&gid=28619"
+  location_id: 13858
+  group_id: 28619
+
+browser:
+  profile_directory: "~/.hayden-booker/browser-profile"
+  scheduled_headless: true
+  bootstrap_headless: false
+  navigation_timeout_seconds: 30
+  overall_run_timeout_seconds: 180
+  lock_timeout_seconds: 5
+
+scheduler:
+  assumed_release_time: "00:00"
+  release_observation_interval_seconds: 30
+  release_grace_minutes: 15
+  max_booking_attempts: 3
+  retry_delay_seconds: 20
+  submitting_safety_timeout_minutes: 15
+
+notifications:
+  desktop_enabled: true
+  notify_on_success: true
+  notify_on_auth_required: true
+  notify_on_failure: true
+
+diagnostics:
+  capture_screenshots: false
+  screenshot_retention_days: 7
+
+schedules:
+  - id: "monday-afternoon"
+    enabled: true
+    weekday: "monday"
+    start_time: "13:30"
+    end_time: "15:30"
+    room_preferences:
+      - "Study Room 311A"
+      - "Study Room 311B"
+      - "Study Room 311C"
+    exact_time_required: true
+"""
