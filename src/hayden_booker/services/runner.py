@@ -106,6 +106,7 @@ class BookingRunner:
                     rule,
                     today=today,
                     processed_dates=(self.repository.processed_dates(rule.id) if due else set()),
+                    prefer_newly_released=due,
                 )
                 if resolved is None:
                     self.logger.event(

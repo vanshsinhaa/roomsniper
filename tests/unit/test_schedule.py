@@ -26,6 +26,16 @@ def test_late_run_can_still_resolve_current_occurrence() -> None:
     assert resolve_target_date(offered, monday_rule(), today=date(2026, 8, 24)) == date(2026, 8, 24)
 
 
+def test_due_run_prefers_newly_released_occurrence() -> None:
+    offered = [date(2026, 8, 24), date(2026, 8, 25), date(2026, 8, 31)]
+    assert resolve_target_date(
+        offered,
+        monday_rule(),
+        today=date(2026, 8, 24),
+        prefer_newly_released=True,
+    ) == date(2026, 8, 31)
+
+
 def test_processed_and_out_of_horizon_dates_are_skipped() -> None:
     offered = [date(2026, 8, 24), date(2026, 8, 31)]
     result = resolve_target_date(

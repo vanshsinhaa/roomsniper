@@ -12,6 +12,7 @@ def resolve_target_date(
     today: date,
     processed_dates: set[date] | None = None,
     booking_horizon_days: int = 7,
+    prefer_newly_released: bool = False,
 ) -> date | None:
     processed_dates = processed_dates or set()
     weekday = _weekday_number(rule.weekday)
@@ -23,7 +24,9 @@ def resolve_target_date(
         and offered.weekday() == weekday
         and offered not in processed_dates
     )
-    return candidates[0] if candidates else None
+    if not candidates:
+        return None
+    return candidates[-1] if prefer_newly_released else candidates[0]
 
 
 def _weekday_number(name: str) -> int:
