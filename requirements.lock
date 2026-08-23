@@ -1,0 +1,15 @@
+# Reproducible baseline for Python 3.12. Regenerate intentionally when upgrading.
+filelock==3.16.1
+keyring==25.4.1
+playwright==1.48.0
+pydantic==2.9.2
+PyYAML==6.0.2
+tzdata==2026.3
+typer==0.13.0
+
+# Development and verification
+mypy==1.13.0
+pytest==8.3.3
+pytest-asyncio==0.24.0
+ruff==0.7.1
+types-PyYAML==6.0.12.20240917

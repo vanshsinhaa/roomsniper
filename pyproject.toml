@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hayden-room-booker"
+version = "0.1.0"
+description = "Safe local automation for recurring ASU Hayden Library room reservations"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Hayden Room Booker contributors" }]
+dependencies = [
+  "filelock>=3.15,<4",
+  "keyring>=25.2,<26",
+  "playwright>=1.47,<2",
+  "pydantic>=2.8,<3",
+  "PyYAML>=6.0,<7",
+  "tzdata>=2024.1",
+  "typer>=0.12,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.11,<2",
+  "pytest>=8.3,<9",
+  "pytest-asyncio>=0.24,<1",
+  "ruff>=0.6,<1",
+  "types-PyYAML>=6.0.12",
+]
+
+[project.scripts]
+hayden-booker = "hayden_booker.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-m 'not live'"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+  "browser: fixture-based Playwright browser test",
+  "live: opt-in test that accesses the public LibCal site and never submits",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["hayden_booker"]
+mypy_path = "src"
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["keyring", "keyring.errors", "yaml"]
+ignore_missing_imports = true
