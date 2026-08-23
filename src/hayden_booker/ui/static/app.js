@@ -12,6 +12,17 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+/* Command shown in a health card tooltip when the check has no remedy of its own. */
+const FALLBACK_COMMANDS = {
+  config: "hayden-booker config validate",
+  secret: "hayden-booker secret set-school-id",
+  auth: "hayden-booker auth check",
+  scheduler: "hayden-booker doctor",
+  database: "hayden-booker history",
+  activity: "hayden-booker run --dry-run",
+  lock: "hayden-booker doctor",
+};
+
 function el(tag, options = {}, children = []) {
   const node = document.createElement(tag);
   if (options.className) node.className = options.className;
@@ -83,7 +94,10 @@ function renderStatus(status) {
   const checks = $("checks");
   checks.replaceChildren(
     ...status.checks.map((check) => {
-      const card = el("div", { className: "card", attrs: { "data-state": check.state } });
+      const card = el("div", {
+        className: "card",
+        attrs: { "data-state": check.state, tabindex: "0" },
+      });
       card.appendChild(
         el("div", { className: "card-head" }, [
           el("div", { className: "card-title", text: check.label }),
@@ -98,6 +112,9 @@ function renderStatus(status) {
       if (check.remedy && check.state !== "ok") {
         card.appendChild(renderRemedy(check.remedy));
       }
+      card.appendChild(renderTooltip(check));
+      card.addEventListener("mouseenter", () => placeTooltip(card));
+      card.addEventListener("focus", () => placeTooltip(card));
       return card;
     }),
   );
@@ -115,6 +132,78 @@ function renderRemedy(remedy) {
     wrapper.appendChild(index % 2 === 1 ? el("code", { text: part }) : document.createTextNode(part));
   });
   return wrapper;
+}
+
+function commandFor(check) {
+  const match = /`([^`]+)`/.exec(check.remedy || "");
+  if (match) return match[1];
+  return FALLBACK_COMMANDS[check.key] || "hayden-booker doctor";
+}
+
+function tooltipText(check) {
+  if (check.remedy) return check.remedy.replace(/`/g, "");
+  return check.state === "ok"
+    ? "Nothing to fix. Run this to re-check it yourself."
+    : "Run this to investigate.";
+}
+
+function renderTooltip(check) {
+  const command = commandFor(check);
+  const copy = el("button", {
+    className: "tip-copy",
+    text: "Copy",
+    attrs: { type: "button", "aria-label": `Copy command: ${command}` },
+  });
+  copy.addEventListener("click", (event) => {
+    event.stopPropagation();
+    copyCommand(command, copy);
+  });
+  return el("div", { className: "tip", attrs: { role: "tooltip" } }, [
+    el("div", { className: "tip-label", text: check.state === "ok" ? "Check" : "Fix" }),
+    el("div", { className: "tip-text", text: tooltipText(check) }),
+    el("div", { className: "tip-command" }, [el("code", { text: command }), copy]),
+  ]);
+}
+
+/* Flip the tooltip below its card when it would collide with the sticky header. */
+function placeTooltip(card) {
+  const tip = card.querySelector(".tip");
+  if (!tip) return;
+  const needsFlip = card.getBoundingClientRect().top - tip.offsetHeight < 84;
+  tip.classList.toggle("tip-below", needsFlip);
+}
+
+async function copyCommand(command, button) {
+  let copied = false;
+  try {
+    // Available because 127.0.0.1 counts as a secure context.
+    await navigator.clipboard.writeText(command);
+    copied = true;
+  } catch (error) {
+    copied = legacyCopy(command);
+  }
+  button.textContent = copied ? "Copied" : "Ctrl+C";
+  button.dataset.copied = String(copied);
+  setTimeout(() => {
+    button.textContent = "Copy";
+    delete button.dataset.copied;
+  }, 1600);
+}
+
+function legacyCopy(command) {
+  const field = el("textarea", { text: command });
+  field.style.position = "fixed";
+  field.style.opacity = "0";
+  document.body.appendChild(field);
+  field.select();
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch (error) {
+    copied = false;
+  }
+  field.remove();
+  return copied;
 }
 
 function renderBanner(status) {

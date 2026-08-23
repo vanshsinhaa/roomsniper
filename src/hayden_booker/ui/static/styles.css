@@ -13,6 +13,13 @@
   --bad: #ff6b6b;
   --unknown: #7f8b9c;
   --radius: 14px;
+  --font-sans: "Google Sans", "Google Sans Text", "Google Sans Display", "Product Sans",
+    system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Google Sans Code", "JetBrains Mono", "Cascadia Mono", ui-monospace,
+    SFMono-Regular, Menlo, monospace;
+  --glass: rgba(24, 29, 38, 0.62);
+  --glass-line: rgba(255, 255, 255, 0.14);
+  --glass-sheen: rgba(255, 255, 255, 0.16);
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 }
 
@@ -26,6 +33,9 @@
     --text: #141920;
     --muted: #5d6875;
     --shadow: 0 10px 30px rgba(20, 30, 50, 0.08);
+    --glass: rgba(255, 255, 255, 0.72);
+    --glass-line: rgba(20, 30, 50, 0.1);
+    --glass-sheen: rgba(255, 255, 255, 0.75);
   }
 }
 
@@ -37,7 +47,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.5 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font: 15px/1.5 var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -254,7 +264,15 @@ main {
   border: 1px solid var(--line);
   background: var(--card);
   position: relative;
-  overflow: hidden;
+  /* Visible so the hover tooltip can escape the card box. */
+  overflow: visible;
+  transition: border-color 0.15s ease;
+}
+
+.card:hover,
+.card:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  outline: none;
 }
 
 .card::before {
@@ -262,6 +280,7 @@ main {
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
+  border-radius: var(--radius) 0 0 var(--radius);
   background: var(--unknown);
 }
 
@@ -324,12 +343,168 @@ main {
 }
 
 code {
-  font-family: "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 1px 6px;
+}
+
+/* Liquid-glass tooltip ------------------------------------------------------ */
+.tip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 12px);
+  z-index: 25;
+  width: max-content;
+  max-width: min(360px, 86vw);
+  padding: 13px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--glass-line);
+  background: var(--glass);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  box-shadow:
+    0 20px 45px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 var(--glass-sheen),
+    inset 0 0 26px rgba(255, 255, 255, 0.05);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 6px) scale(0.98);
+  transition:
+    opacity 0.16s ease,
+    transform 0.18s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+/* Specular highlight sliding across the top edge. */
+.tip::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    140deg,
+    rgba(255, 255, 255, 0.16),
+    rgba(255, 255, 255, 0.02) 42%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+/* Glass arrow. */
+.tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -7px 0 0 -6px;
+  border-radius: 3px;
+  transform: rotate(45deg);
+  background: var(--glass);
+  border-right: 1px solid var(--glass-line);
+  border-bottom: 1px solid var(--glass-line);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+}
+
+.card:hover .tip,
+.card:focus-within .tip {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.tip-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tip-text {
+  position: relative;
+  margin-top: 5px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.tip-command {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px 8px 8px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-line);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+
+.tip-command code {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 12.5px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tip-command code::selection {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.tip-copy {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--glass-line);
+  background: color-mix(in srgb, #fff 8%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+
+.tip-copy:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.tip-copy[data-copied="true"] {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+}
+
+.tip.tip-below {
+  bottom: auto;
+  top: calc(100% + 12px);
+}
+
+.tip.tip-below::after {
+  top: auto;
+  bottom: 100%;
+  margin: 0 0 -7px -6px;
+  border: 0;
+  border-left: 1px solid var(--glass-line);
+  border-top: 1px solid var(--glass-line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tip {
+    transition: opacity 0.01s linear;
+    transform: translate(-50%, 0);
+  }
 }
 
 /* Stats -------------------------------------------------------------------- */
