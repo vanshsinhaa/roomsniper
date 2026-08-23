@@ -66,6 +66,20 @@ SQLite commits the unique occurrence to `SUBMITTING` before the first booking ac
 in-flight, unknown-result, and stale-submission occurrences cannot be resubmitted automatically.
 Explicit room conflicts are the only post-submit outcome eligible for a bounded retry.
 
+## Dashboard
+
+```powershell
+hayden-booker ui
+```
+
+`ui` serves a read-only dashboard on `http://127.0.0.1:8787` (loopback only, `--port` to change,
+`--no-open` to skip launching a browser). It shows whether the system is active — configuration,
+school-ID secret, ASU sign-in, scheduled task, database, recent run activity, and profile lock —
+plus the booking history with a detail card per occurrence, its attempt timeline, and
+**Add to Google Calendar** / `.ics` buttons. Sign-in health is judged by what the last real run
+observed, because the ASU/Duo session rides on session cookies that carry no expiry. The dashboard
+never books, submits, or reads any credential value.
+
 ## Operations
 
 ```powershell

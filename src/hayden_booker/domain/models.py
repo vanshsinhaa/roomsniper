@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -34,6 +35,17 @@ class OccurrenceKey(BaseModel):
     target_date: date
     start_time: str
     end_time: str
+
+
+class AttemptEvent(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    occurrence_id: str
+    event_type: str
+    occurred_at_utc: datetime
+    room: str | None
+    details: dict[str, Any]
 
 
 class ReservationOccurrence(BaseModel):

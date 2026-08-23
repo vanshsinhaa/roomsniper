@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from hayden_booker.constants import AttemptStatus
-from hayden_booker.domain.models import OccurrenceKey, ReservationOccurrence
+from hayden_booker.domain.models import AttemptEvent, OccurrenceKey, ReservationOccurrence
 
 BLOCKING_STATUSES = {
     AttemptStatus.CONFIRMED,
@@ -217,6 +217,16 @@ class ReservationRepository:
         ).fetchall()
         return [_occurrence_from_row(row) for row in rows]
 
+    def list_events(self, occurrence_id: str) -> list[AttemptEvent]:
+        rows = self.connection.execute(
+            """
+            SELECT id, occurrence_id, event_type, occurred_at_utc, room, details_json
+            FROM attempt_events WHERE occurrence_id = ? ORDER BY occurred_at_utc ASC
+            """,
+            (occurrence_id,),
+        ).fetchall()
+        return [_event_from_row(row) for row in rows]
+
     def processed_dates(self, schedule_id: str) -> set[date]:
         rows = self.connection.execute(
             """
@@ -270,6 +280,21 @@ def _parse_required_utc(value: str) -> datetime:
     if parsed is None:  # pragma: no cover - constrained by the database schema
         raise ValueError("required UTC timestamp is null")
     return parsed
+
+
+def _event_from_row(row: sqlite3.Row) -> AttemptEvent:
+    try:
+        details = json.loads(str(row["details_json"]))
+    except ValueError:  # pragma: no cover - defensive against hand-edited rows
+        details = {}
+    return AttemptEvent(
+        id=str(row["id"]),
+        occurrence_id=str(row["occurrence_id"]),
+        event_type=str(row["event_type"]),
+        occurred_at_utc=_parse_required_utc(str(row["occurred_at_utc"])),
+        room=str(row["room"]) if row["room"] is not None else None,
+        details=details if isinstance(details, dict) else {},
+    )
 
 
 def _occurrence_from_row(row: sqlite3.Row) -> ReservationOccurrence:

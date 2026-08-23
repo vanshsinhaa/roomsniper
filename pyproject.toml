@@ -35,6 +35,9 @@ hayden-booker = "hayden_booker.cli:app"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"hayden_booker.ui.static" = ["*.html", "*.css", "*.js"]
+
 [tool.pytest.ini_options]
 addopts = "-m 'not live'"
 asyncio_mode = "auto"

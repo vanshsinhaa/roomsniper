@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import webbrowser
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -34,6 +35,7 @@ from hayden_booker.security.secrets import (
 )
 from hayden_booker.services.release_observer import observe_release
 from hayden_booker.services.runner import BookingRunner
+from hayden_booker.ui.server import DEFAULT_HOST, DEFAULT_PORT, create_server
 
 app = typer.Typer(
     name="hayden-booker",
@@ -319,6 +321,45 @@ def history_command(
             f"{item.schedule_id} {item.status.value} room={item.chosen_room or '-'} "
             f"attempts={item.attempt_count} id={item.id}"
         )
+
+
+@app.command("ui")
+def ui_command(
+    ctx: typer.Context,
+    port: Annotated[int, typer.Option("--port", min=1024, max=65535)] = DEFAULT_PORT,
+    host: Annotated[str, typer.Option("--host", help="Loopback address to bind.")] = DEFAULT_HOST,
+    open_browser: Annotated[
+        bool, typer.Option("--open/--no-open", help="Open the dashboard in the default browser.")
+    ] = True,
+) -> None:
+    """Serve the local read-only status and booking-history dashboard."""
+    if host not in {"127.0.0.1", "localhost", "::1"}:
+        _fail(
+            "CONFIG_INVALID",
+            "The dashboard may only bind a loopback address.",
+            ExitCode.CONFIG_INVALID,
+            "Use --host 127.0.0.1.",
+        )
+    state = _state(ctx)
+    try:
+        server = create_server(state.config_path, host=host, port=port)
+    except OSError as exc:
+        _fail(
+            "UI_PORT_UNAVAILABLE",
+            f"Could not bind {host}:{port}: {exc}",
+            ExitCode.NETWORK_ERROR,
+            "Choose another port with --port.",
+        )
+    url = f"http://{host}:{port}/"
+    typer.echo(f"Hayden Booker dashboard: {url}")
+    typer.echo("Read-only; it never books, submits, or stores credentials. Press Ctrl+C to stop.")
+    if open_browser:
+        webbrowser.open(url)
+    try:
+        with server:
+            server.serve_forever()
+    except KeyboardInterrupt:
+        typer.echo("Dashboard stopped.")
 
 
 @app.command("doctor")

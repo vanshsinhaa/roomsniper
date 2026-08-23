@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hayden Room Booker</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128218;</text></svg>"
+    />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <h1>Hayden Room Booker</h1>
+          <p class="brand-sub" id="brand-sub">Local dashboard</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="status-pill" id="status-pill" data-state="unknown">
+          <span class="dot" aria-hidden="true"></span>
+          <span id="status-label">Checking…</span>
+        </div>
+        <label class="switch" title="Refresh every 30 seconds">
+          <input type="checkbox" id="auto-refresh" checked />
+          <span>Auto</span>
+        </label>
+        <button class="button" id="refresh">Refresh</button>
+      </div>
+    </header>
+
+    <main>
+      <div class="banner hidden" id="banner" role="alert"></div>
+
+      <section class="section">
+        <div class="section-head">
+          <h2>System health</h2>
+          <span class="muted" id="generated-at"></span>
+        </div>
+        <div class="grid" id="checks"></div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h2>At a glance</h2>
+        </div>
+        <div class="stats" id="stats"></div>
+        <div class="upcoming" id="upcoming"></div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h2>Booking history</h2>
+          <div class="controls">
+            <div class="tabs" id="filters">
+              <button class="tab is-active" data-filter="all">All</button>
+              <button class="tab" data-filter="confirmed">Confirmed</button>
+              <button class="tab" data-filter="pending">Pending</button>
+              <button class="tab" data-filter="failed">Failed</button>
+            </div>
+            <input
+              class="search"
+              id="search"
+              type="search"
+              placeholder="Search room, date, schedule…"
+              autocomplete="off"
+            />
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="bookings">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Room</th>
+                <th>Schedule</th>
+                <th>Status</th>
+                <th class="right">Attempts</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="bookings"></tbody>
+          </table>
+          <p class="empty hidden" id="bookings-empty">No bookings recorded yet.</p>
+        </div>
+      </section>
+    </main>
+
+    <div class="drawer-scrim hidden" id="scrim"></div>
+    <aside class="drawer hidden" id="drawer" aria-label="Booking details">
+      <div id="drawer-body"></div>
+    </aside>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
