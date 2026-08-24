@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from hayden_booker.config import load_config
 from hayden_booker.constants import AttemptStatus
 from hayden_booker.domain.models import OccurrenceKey
 from hayden_booker.persistence.database import connect
@@ -266,6 +267,94 @@ def test_acknowledge_endpoint_requires_the_dashboard_header(environment: Path) -
         assert response.status == 200
         assert json.loads(response.read())["acknowledged"] is True
         allowed.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_config_endpoint_validates_and_persists_editable_settings(environment: Path) -> None:
+    server = serve(environment)
+    port = server.server_address[1]
+    base = f"http://127.0.0.1:{port}"
+    try:
+        with urllib.request.urlopen(f"{base}/api/config") as response:
+            editable = json.loads(response.read())
+        assert editable["known_rooms"]
+        assert editable["timezone"] == "America/Phoenix"
+
+        schedule = editable["schedules"][0]
+        schedule["enabled"] = False
+        schedule["room_preferences"] = ["Study Room C19", "Study Room 311A"]
+        body = json.dumps({"live_booking_enabled": True, "schedules": editable["schedules"]})
+
+        forged = HTTPConnection("127.0.0.1", port, timeout=5)
+        forged.request(
+            "POST",
+            "/api/config",
+            body=body,
+            headers={"Content-Type": "application/json", "Host": "127.0.0.1"},
+        )
+        assert forged.getresponse().status == 403
+        forged.close()
+
+        allowed = HTTPConnection("127.0.0.1", port, timeout=5)
+        allowed.request(
+            "POST",
+            "/api/config",
+            body=body,
+            headers={
+                "Content-Type": "application/json",
+                "Host": "127.0.0.1",
+                "X-Hayden-Dashboard": "1",
+            },
+        )
+        response = allowed.getresponse()
+        assert response.status == 200
+        saved = json.loads(response.read())
+        assert saved["live_booking_enabled"] is True
+        allowed.close()
+
+        config, _ = load_config(environment)
+        assert config.live_booking_enabled is True
+        assert config.schedules[0].enabled is False
+        assert config.schedules[0].room_preferences[0] == "Study Room C19"
+        assert config.libcal.base_url == "https://asu.libcal.com"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_invalid_config_edit_does_not_change_the_file(environment: Path) -> None:
+    server = serve(environment)
+    port = server.server_address[1]
+    original = environment.read_text(encoding="utf-8")
+    invalid_schedule = {
+        "id": "bad-time",
+        "enabled": True,
+        "weekday": "monday",
+        "start_time": "15:00",
+        "end_time": "14:00",
+        "room_preferences": ["Study Room C19"],
+        "exact_time_required": True,
+    }
+    try:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        connection.request(
+            "POST",
+            "/api/config",
+            body=json.dumps({"live_booking_enabled": True, "schedules": [invalid_schedule]}),
+            headers={
+                "Content-Type": "application/json",
+                "Host": "127.0.0.1",
+                "X-Hayden-Dashboard": "1",
+            },
+        )
+        response = connection.getresponse()
+        payload = json.loads(response.read())
+        assert response.status == 422
+        assert "later than start_time" in payload["error"]
+        assert environment.read_text(encoding="utf-8") == original
+        connection.close()
     finally:
         server.shutdown()
         server.server_close()

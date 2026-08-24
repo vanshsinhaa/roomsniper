@@ -15,6 +15,11 @@ from hayden_booker.config import database_path, load_config
 from hayden_booker.persistence.database import connect
 from hayden_booker.persistence.repository import ReservationRepository
 from hayden_booker.ui import health, history
+from hayden_booker.ui.config_editor import (
+    ConfigEditError,
+    editable_config,
+    update_editable_config,
+)
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8787
@@ -29,10 +34,11 @@ _OCCURRENCE_ID = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 # A cross-origin page can submit a form POST, but it cannot set a custom header
 # without a preflight this server never approves.
 _WRITE_HEADER = "X-Hayden-Dashboard"
+_MAX_JSON_BODY_BYTES = 64 * 1024
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
-    """Read-only handler; the dashboard never triggers a booking action."""
+    """Local dashboard handler; configuration writes are validated and atomic."""
 
     server_version = "HaydenBookerUI"
     sys_version = ""
@@ -58,7 +64,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": f"{type(exc).__name__}"})
 
     def do_POST(self) -> None:
-        """The only write path: marking an occurrence as humanly reviewed."""
         if not self._host_allowed():
             self._send_json(HTTPStatus.FORBIDDEN, {"error": "Only local requests are served."})
             return
@@ -66,6 +71,24 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.FORBIDDEN, {"error": "Missing dashboard header."})
             return
         path = urlsplit(self.path).path
+        if path == "/api/config":
+            try:
+                payload = update_editable_config(self.config_path, self._read_json())
+            except json.JSONDecodeError:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST, {"error": "Request body is not valid JSON."}
+                )
+                return
+            except ConfigEditError as exc:
+                self._send_json(HTTPStatus.UNPROCESSABLE_ENTITY, {"error": str(exc)})
+                return
+            except Exception as exc:  # pragma: no cover - surfaced in the dashboard banner
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR, {"error": f"{type(exc).__name__}"}
+                )
+                return
+            self._send_json(HTTPStatus.OK, payload)
+            return
         acknowledge = re.fullmatch(r"/api/bookings/([^/]+)/acknowledge", path)
         if not acknowledge:
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
@@ -99,6 +122,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/status":
             self._send_json(HTTPStatus.OK, health.build_status(self.config_path))
+            return
+        if path == "/api/config":
+            self._send_json(HTTPStatus.OK, editable_config(self.config_path))
             return
         if path == "/api/bookings":
             limit = self._int_param("limit", default=100, minimum=1, maximum=500)
@@ -161,6 +187,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def _send_json(self, status: HTTPStatus, payload: dict[str, Any]) -> None:
         body = json.dumps(payload, separators=(",", ":"), default=str).encode("utf-8")
         self._send_bytes(status, body, "application/json; charset=utf-8")
+
+    def _read_json(self) -> Any:
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError as exc:
+            raise json.JSONDecodeError("Invalid content length", "", 0) from exc
+        if length <= 0:
+            raise json.JSONDecodeError("Empty request body", "", 0)
+        if length > _MAX_JSON_BODY_BYTES:
+            raise ConfigEditError("Configuration request is too large.")
+        return json.loads(self.rfile.read(length).decode("utf-8"))
 
     def _send_bytes(
         self,
