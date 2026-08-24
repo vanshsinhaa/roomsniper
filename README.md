@@ -72,14 +72,19 @@ Explicit room conflicts are the only post-submit outcome eligible for a bounded 
 hayden-booker ui
 ```
 
-`ui` serves a read-only dashboard on `http://127.0.0.1:8787` (loopback only, `--port` to change,
+`ui` serves a local dashboard on `http://127.0.0.1:8787` (loopback only, `--port` to change,
 `--no-open` to skip launching a browser). It shows whether the system is active — configuration,
 school-ID secret, ASU sign-in, scheduled task, database, recent run activity, and profile lock —
 plus the booking history with a detail card per occurrence, its attempt timeline, and
-**Add to Google Calendar** / `.ics` buttons. Sign-in health is judged by what the last real run
-observed, because the ASU/Duo session rides on session cookies that carry no expiry. The dashboard
-never books, submits, or reads any credential value. Its only outbound request is the Google
-Fonts stylesheet for Google Sans; offline it falls back to the local system font.
+**Add to Google Calendar** / `.ics` buttons.
+
+The **Booking schedules** workspace edits schedule names, active/paused state, weekday, start/end
+time, preferred room, and the master Live/Dry-run setting. **Save changes** validates the entire
+configuration and atomically replaces `config.yaml`; the next scheduled run sees the new values.
+Saving never starts a run or submits a booking immediately. Sign-in health is judged by what the
+last real run observed, because the ASU/Duo session rides on session cookies that carry no expiry.
+The dashboard never reads any credential value. Its only outbound request is the Google Fonts
+stylesheet for Google Sans; offline it falls back to the local system font.
 
 Keep it running across logons with an opt-in scheduled task, after reviewing the command:
 
@@ -90,7 +95,7 @@ Keep it running across logons with an opt-in scheduled task, after reviewing the
 It launches the dashboard through `pythonw.exe`, so no console window stays open, restarts it
 if it exits, and lifts the default task execution time limit. Remove it with
 `.\scripts\remove_windows_task.ps1 -TaskName "Hayden Room Booker UI"`. The booking runs stay on
-their own daily task; the dashboard task only serves the read-only views.
+their own daily task; the dashboard task serves the views and validated schedule editor only.
 
 ## Operations
 

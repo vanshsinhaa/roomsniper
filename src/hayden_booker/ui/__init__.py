@@ -1,1 +1,1 @@
-"""Local, read-only dashboard for Hayden Room Booker."""
+"""Local dashboard and validated schedule editor for Hayden Room Booker."""

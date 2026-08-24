@@ -1,6 +1,12 @@
 "use strict";
 
 const REFRESH_MS = 30000;
+const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+const TIME_VALUES = Array.from({ length: 48 }, (_, index) => {
+  const hour = Math.floor(index / 2);
+  const minute = index % 2 === 0 ? "00" : "30";
+  return `${String(hour).padStart(2, "0")}:${minute}`;
+});
 
 const state = {
   bookings: [],
@@ -8,6 +14,10 @@ const state = {
   search: "",
   status: null,
   timer: null,
+  config: null,
+  configBaseline: null,
+  configSaving: false,
+  toastTimer: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -41,6 +51,21 @@ async function getJson(path) {
   const response = await fetch(path, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
   return response.json();
+}
+
+async function postJson(path, payload) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-Hayden-Dashboard": "1",
+    },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || `${response.status} ${response.statusText}`);
+  return result;
 }
 
 /* Formatting ---------------------------------------------------------------- */
@@ -277,6 +302,327 @@ function renderUpcoming(status) {
   );
 }
 
+/* Schedule settings --------------------------------------------------------- */
+
+function editableSnapshot(config) {
+  return {
+    live_booking_enabled: Boolean(config.live_booking_enabled),
+    schedules: (config.schedules || []).map((schedule) => ({
+      id: schedule.id,
+      enabled: Boolean(schedule.enabled),
+      weekday: schedule.weekday,
+      start_time: schedule.start_time,
+      end_time: schedule.end_time,
+      room_preferences: [...schedule.room_preferences],
+      exact_time_required: true,
+    })),
+  };
+}
+
+function cloneConfig(config) {
+  return JSON.parse(JSON.stringify(config));
+}
+
+function configIsDirty() {
+  if (!state.config || !state.configBaseline) return false;
+  return JSON.stringify(editableSnapshot(state.config)) !== JSON.stringify(state.configBaseline);
+}
+
+function minuteValue(value) {
+  const [hour, minute] = value.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+function preferredRoom(schedule) {
+  const rooms = state.config.known_rooms || [];
+  const current = schedule.room_preferences || [];
+  const defaultOrder =
+    current.length === rooms.length && current.every((room, index) => room === rooms[index]);
+  return defaultOrder ? "" : current[0] || "";
+}
+
+function setPreferredRoom(schedule, room) {
+  const rooms = state.config.known_rooms || [];
+  schedule.room_preferences = room ? [room, ...rooms.filter((item) => item !== room)] : [...rooms];
+}
+
+function selectControl(id, value, options, label) {
+  const select = el("select", {
+    className: "config-select",
+    attrs: { id, "aria-label": label },
+  });
+  for (const option of options) {
+    const node = el("option", { text: option.label, attrs: { value: option.value } });
+    node.selected = option.value === value;
+    select.appendChild(node);
+  }
+  return select;
+}
+
+function fieldControl(label, control, hint = "") {
+  const children = [el("span", { className: "field-label", text: label }), control];
+  if (hint) children.push(el("span", { className: "field-hint", text: hint }));
+  return el("label", { className: "config-field" }, children);
+}
+
+function renderSchedule(schedule, index) {
+  const prefix = `schedule-${index}`;
+  const card = el("article", {
+    className: "schedule-card",
+    attrs: { "data-enabled": String(schedule.enabled) },
+  });
+
+  const enabled = el("input", {
+    attrs: {
+      id: `${prefix}-enabled`,
+      type: "checkbox",
+      "aria-label": `Enable ${schedule.id || `schedule ${index + 1}`}`,
+    },
+  });
+  enabled.checked = schedule.enabled;
+  enabled.addEventListener("change", () => {
+    schedule.enabled = enabled.checked;
+    renderConfig();
+  });
+
+  const remove = el("button", {
+    className: "icon-button danger",
+    text: "Remove",
+    attrs: { type: "button", "aria-label": `Remove ${schedule.id || `schedule ${index + 1}`}` },
+  });
+  remove.addEventListener("click", () => {
+    state.config.schedules.splice(index, 1);
+    renderConfig();
+  });
+
+  const dayName = schedule.weekday || "monday";
+  const header = el("div", { className: "schedule-card-head" }, [
+    el("div", { className: "schedule-identity" }, [
+      el("span", { className: "day-mark", text: dayName.slice(0, 3) }),
+      el("div", {}, [
+        el("h3", { text: schedule.id || "Untitled schedule" }),
+        el("p", {
+          text: `${formatClock(schedule.start_time)} – ${formatClock(schedule.end_time)}`,
+        }),
+      ]),
+    ]),
+    el("div", { className: "schedule-card-actions" }, [
+      el("label", { className: "mini-toggle", attrs: { for: `${prefix}-enabled` } }, [
+        enabled,
+        el("span", { className: "toggle-track", attrs: { "aria-hidden": "true" } }, [el("span")]),
+        el("span", { className: "mini-toggle-label", text: schedule.enabled ? "Active" : "Paused" }),
+      ]),
+      remove,
+    ]),
+  ]);
+
+  const idInput = el("input", {
+    className: "config-input",
+    attrs: {
+      id: `${prefix}-id`,
+      type: "text",
+      value: schedule.id,
+      maxlength: "80",
+      spellcheck: "false",
+      autocomplete: "off",
+    },
+  });
+  idInput.addEventListener("input", () => {
+    schedule.id = idInput.value.trim();
+    markConfigChanged();
+  });
+
+  const weekday = selectControl(
+    `${prefix}-weekday`,
+    schedule.weekday,
+    WEEKDAYS.map((day) => ({ value: day, label: day[0].toUpperCase() + day.slice(1) })),
+    "Weekday",
+  );
+  weekday.addEventListener("change", () => {
+    schedule.weekday = weekday.value;
+    renderConfig();
+  });
+
+  const timeOptions = TIME_VALUES.map((time) => ({ value: time, label: formatClock(time) }));
+  const start = selectControl(`${prefix}-start`, schedule.start_time, timeOptions, "Start time");
+  start.addEventListener("change", () => {
+    schedule.start_time = start.value;
+    renderConfig();
+  });
+  const end = selectControl(`${prefix}-end`, schedule.end_time, timeOptions, "End time");
+  end.addEventListener("change", () => {
+    schedule.end_time = end.value;
+    renderConfig();
+  });
+
+  const selectedRoom = preferredRoom(schedule);
+  const room = selectControl(
+    `${prefix}-room`,
+    selectedRoom,
+    [
+      { value: "", label: "Any available room" },
+      ...(state.config.known_rooms || []).map((name) => ({ value: name, label: name })),
+    ],
+    "Preferred room",
+  );
+  room.addEventListener("change", () => {
+    setPreferredRoom(schedule, room.value);
+    renderConfig();
+  });
+  const fallbackCount = Math.max((schedule.room_preferences || []).length - 1, 0);
+  const roomHint = selectedRoom
+    ? `${fallbackCount} other Hayden rooms remain as fallbacks.`
+    : `All ${(state.config.known_rooms || []).length} Hayden rooms are eligible.`;
+
+  card.append(
+    header,
+    el("div", { className: "schedule-fields" }, [
+      fieldControl("Schedule name", idInput, "Letters, numbers, hyphens, and underscores."),
+      fieldControl("Day", weekday),
+      fieldControl("Starts", start),
+      fieldControl("Ends", end),
+      fieldControl("Preferred room", room, roomHint),
+    ]),
+  );
+  return card;
+}
+
+function renderConfig() {
+  if (!state.config) return;
+  const liveToggle = $("live-booking-toggle");
+  liveToggle.disabled = state.configSaving;
+  liveToggle.checked = state.config.live_booking_enabled;
+  $("live-mode-label").textContent = state.config.live_booking_enabled ? "Live" : "Dry run";
+  $("live-mode-description").textContent = state.config.live_booking_enabled
+    ? "Live mode is on. Active schedules may submit a real booking on the next automatic run."
+    : "Dry-run mode is on. The booker checks availability but does not submit a reservation.";
+  $("schedule-settings").dataset.live = String(state.config.live_booking_enabled);
+
+  const grid = $("schedule-grid");
+  if (state.config.schedules.length === 0) {
+    grid.replaceChildren(
+      el("div", { className: "schedule-empty" }, [
+        el("strong", { text: "No schedules yet" }),
+        el("span", { text: "Add one before saving your configuration." }),
+      ]),
+    );
+  } else {
+    grid.replaceChildren(...state.config.schedules.map(renderSchedule));
+  }
+  $("add-schedule").disabled = state.configSaving;
+  updateSaveState();
+}
+
+function markConfigChanged() {
+  updateSaveState();
+}
+
+function updateSaveState() {
+  const dirty = configIsDirty();
+  const save = $("save-config");
+  const discard = $("discard-config");
+  save.disabled = !dirty || state.configSaving;
+  save.textContent = state.configSaving ? "Saving…" : "Save changes";
+  discard.classList.toggle("hidden", !dirty);
+  discard.disabled = state.configSaving;
+  $("save-state").textContent = state.configSaving
+    ? "Validating configuration…"
+    : dirty
+      ? "Unsaved changes"
+      : "All changes saved";
+  $("save-state").dataset.dirty = String(dirty);
+}
+
+function validateConfigDraft() {
+  const schedules = state.config.schedules || [];
+  if (schedules.length === 0) return "Add at least one schedule before saving.";
+  const ids = new Set();
+  const dailyTotals = {};
+  for (const schedule of schedules) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(schedule.id)) {
+      return `“${schedule.id || "Untitled schedule"}” needs a simple name using letters, numbers, hyphens, or underscores.`;
+    }
+    if (ids.has(schedule.id)) return `Schedule name “${schedule.id}” is used more than once.`;
+    ids.add(schedule.id);
+    const duration = minuteValue(schedule.end_time) - minuteValue(schedule.start_time);
+    if (duration <= 0) return `${schedule.id} must end after it starts.`;
+    if (duration > 240) return `${schedule.id} cannot be longer than four hours.`;
+    if (schedule.enabled) {
+      dailyTotals[schedule.weekday] = (dailyTotals[schedule.weekday] || 0) + duration;
+      if (dailyTotals[schedule.weekday] > 240) {
+        return `Active schedules on ${schedule.weekday} total more than four hours.`;
+      }
+    }
+  }
+  return "";
+}
+
+function showToast(message, kind = "success") {
+  const toast = $("toast");
+  if (state.toastTimer) clearTimeout(state.toastTimer);
+  toast.textContent = message;
+  toast.dataset.kind = kind;
+  toast.classList.remove("hidden");
+  state.toastTimer = setTimeout(() => toast.classList.add("hidden"), 3400);
+}
+
+async function saveConfig() {
+  const issue = validateConfigDraft();
+  if (issue) {
+    showToast(issue, "error");
+    return;
+  }
+  state.configSaving = true;
+  renderConfig();
+  try {
+    const saved = await postJson("/api/config", editableSnapshot(state.config));
+    state.config = saved;
+    state.configBaseline = editableSnapshot(saved);
+    showToast("Schedule settings saved. The next run will use them.");
+    renderConfig();
+    await refresh();
+  } catch (error) {
+    showToast(`Could not save: ${error.message}`, "error");
+  } finally {
+    state.configSaving = false;
+    renderConfig();
+  }
+}
+
+function addSchedule() {
+  const schedules = state.config.schedules;
+  const ids = new Set(schedules.map((schedule) => schedule.id));
+  let number = 1;
+  while (ids.has(`new-schedule-${number}`)) number += 1;
+  const lastDay = schedules.length ? WEEKDAYS.indexOf(schedules.at(-1).weekday) : -1;
+  schedules.push({
+    id: `new-schedule-${number}`,
+    enabled: true,
+    weekday: WEEKDAYS[(lastDay + 1) % WEEKDAYS.length],
+    start_time: "13:00",
+    end_time: "14:00",
+    room_preferences: [...state.config.known_rooms],
+    exact_time_required: true,
+  });
+  renderConfig();
+  const cards = $("schedule-grid").querySelectorAll(".schedule-card");
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  cards[cards.length - 1]?.scrollIntoView({
+    behavior: reducedMotion ? "auto" : "smooth",
+    block: "center",
+  });
+}
+
+function discardConfig() {
+  if (!state.configBaseline) return;
+  state.config = {
+    ...state.config,
+    ...cloneConfig(state.configBaseline),
+  };
+  renderConfig();
+  showToast("Unsaved changes discarded.", "neutral");
+}
+
 /* Bookings ------------------------------------------------------------------ */
 
 function visibleBookings() {
@@ -477,11 +823,18 @@ function renderDetail(booking) {
 
 async function refresh() {
   try {
-    const [status, bookings] = await Promise.all([
+    const shouldLoadConfig = !configIsDirty() && !state.configSaving;
+    const [status, bookings, config] = await Promise.all([
       getJson("/api/status"),
       getJson("/api/bookings?limit=200"),
+      shouldLoadConfig ? getJson("/api/config") : Promise.resolve(null),
     ]);
     state.bookings = bookings.bookings || [];
+    if (config) {
+      state.config = config;
+      state.configBaseline = editableSnapshot(config);
+      renderConfig();
+    }
     renderStatus(status);
     renderBookings();
   } catch (error) {
@@ -506,6 +859,13 @@ function setAutoRefresh(enabled) {
 
 document.addEventListener("DOMContentLoaded", () => {
   $("refresh").addEventListener("click", refresh);
+  $("save-config").addEventListener("click", saveConfig);
+  $("discard-config").addEventListener("click", discardConfig);
+  $("add-schedule").addEventListener("click", addSchedule);
+  $("live-booking-toggle").addEventListener("change", (event) => {
+    state.config.live_booking_enabled = event.target.checked;
+    renderConfig();
+  });
   $("scrim").addEventListener("click", closeDrawer);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeDrawer();
@@ -524,6 +884,11 @@ document.addEventListener("DOMContentLoaded", () => {
     renderBookings();
   });
   $("auto-refresh").addEventListener("change", (event) => setAutoRefresh(event.target.checked));
+  window.addEventListener("beforeunload", (event) => {
+    if (!configIsDirty()) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
   setAutoRefresh($("auto-refresh").checked);
   refresh();
 });

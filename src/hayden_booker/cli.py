@@ -332,7 +332,7 @@ def ui_command(
         bool, typer.Option("--open/--no-open", help="Open the dashboard in the default browser.")
     ] = True,
 ) -> None:
-    """Serve the local read-only status and booking-history dashboard."""
+    """Serve the local status, history, and schedule-settings dashboard."""
     if host not in {"127.0.0.1", "localhost", "::1"}:
         _fail(
             "CONFIG_INVALID",
@@ -352,7 +352,10 @@ def ui_command(
         )
     url = f"http://{host}:{port}/"
     typer.echo(f"Hayden Booker dashboard: {url}")
-    typer.echo("Read-only; it never books, submits, or stores credentials. Press Ctrl+C to stop.")
+    typer.echo(
+        "Schedule edits affect future runs; the dashboard never submits a booking directly. "
+        "Press Ctrl+C to stop."
+    )
     if open_browser:
         webbrowser.open(url)
     try:

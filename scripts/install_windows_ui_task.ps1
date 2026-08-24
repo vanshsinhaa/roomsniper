@@ -38,7 +38,7 @@ Register-ScheduledTask `
     -Trigger $trigger `
     -Settings $settings `
     -Principal $principal `
-    -Description "Read-only Hayden Booker dashboard on loopback; it never books or submits." `
+    -Description "Local Hayden Booker dashboard and schedule editor; it never submits directly." `
     -Force | Out-Null
 
 Start-ScheduledTask -TaskName $TaskName

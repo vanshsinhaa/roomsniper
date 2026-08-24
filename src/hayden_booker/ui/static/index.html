@@ -57,6 +57,55 @@
         <div class="upcoming" id="upcoming"></div>
       </section>
 
+      <section class="section config-section" id="schedule-settings">
+        <div class="section-head config-heading">
+          <div>
+            <h2>Booking schedules</h2>
+            <p class="section-description">
+              Choose when the booker runs and which room it should try first.
+            </p>
+          </div>
+          <div class="config-actions">
+            <span class="save-state" id="save-state" aria-live="polite">Loading settings…</span>
+            <button class="button subtle hidden" id="discard-config" type="button">Discard</button>
+            <button class="button" id="add-schedule" type="button" disabled>Add schedule</button>
+            <button class="button primary" id="save-config" type="button" disabled>
+              Save changes
+            </button>
+          </div>
+        </div>
+
+        <div class="config-workspace">
+          <div class="automation-panel">
+            <div class="automation-copy">
+              <span class="automation-icon" aria-hidden="true">A</span>
+              <div>
+                <h3>Automatic booking</h3>
+                <p id="live-mode-description">
+                  Loading the current booking mode…
+                </p>
+              </div>
+            </div>
+            <label class="toggle-control" for="live-booking-toggle">
+              <input id="live-booking-toggle" type="checkbox" disabled />
+              <span class="toggle-track" aria-hidden="true"><span></span></span>
+              <span class="toggle-label" id="live-mode-label">Loading</span>
+            </label>
+          </div>
+
+          <div class="schedule-grid" id="schedule-grid" aria-live="polite">
+            <div class="schedule-skeleton"></div>
+            <div class="schedule-skeleton"></div>
+          </div>
+
+          <div class="config-footnote">
+            <span class="footnote-dot" aria-hidden="true"></span>
+            Saving updates <code>config.yaml</code> immediately. The next scheduled run uses the
+            new settings; no booking is submitted from this page.
+          </div>
+        </div>
+      </section>
+
       <section class="section">
         <div class="section-head">
           <h2>Booking history</h2>
@@ -100,6 +149,8 @@
     <aside class="drawer hidden" id="drawer" aria-label="Booking details">
       <div id="drawer-body"></div>
     </aside>
+
+    <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
 
     <script src="/static/app.js"></script>
   </body>

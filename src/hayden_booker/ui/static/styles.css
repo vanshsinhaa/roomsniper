@@ -20,6 +20,7 @@
   --glass-line: rgba(255, 255, 255, 0.14);
   --glass-sheen: rgba(255, 255, 255, 0.16);
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 @media (prefers-color-scheme: light) {
@@ -185,12 +186,26 @@ h2 {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    transform 0.14s var(--ease-out),
+    background 0.16s var(--ease-out),
+    border-color 0.16s var(--ease-out),
+    filter 0.16s var(--ease-out),
+    opacity 0.16s var(--ease-out);
 }
 
-.button:hover {
-  background: var(--card-hover);
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+.button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .button.primary {
@@ -199,8 +214,20 @@ h2 {
   color: #201a05;
 }
 
-.button.primary:hover {
-  filter: brightness(1.06);
+.button.subtle {
+  background: transparent;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .button:hover:not(:disabled) {
+    background: var(--card-hover);
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  }
+
+  .button.primary:hover:not(:disabled) {
+    background: var(--accent);
+    filter: brightness(1.06);
+  }
 }
 
 .switch {
@@ -557,6 +584,454 @@ code {
   font-weight: 600;
 }
 
+/* Schedule settings -------------------------------------------------------- */
+.config-heading {
+  align-items: flex-end;
+}
+
+.section-description {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.config-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.save-state {
+  margin-right: 4px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.save-state[data-dirty="true"] {
+  color: var(--warn);
+}
+
+.config-workspace {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) + 2px);
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 34%),
+    var(--bg-soft);
+  box-shadow: 0 18px 45px color-mix(in srgb, #000 18%, transparent);
+}
+
+.automation-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--card) 78%, transparent);
+}
+
+.automation-copy {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.automation-copy h3 {
+  font-size: 15px;
+}
+
+.automation-copy p {
+  max-width: 660px;
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.automation-icon {
+  display: grid;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 12px;
+  background: linear-gradient(145deg, var(--maroon), color-mix(in srgb, var(--maroon) 65%, #25131a));
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.toggle-control,
+.mini-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-control input,
+.mini-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toggle-track {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 42px;
+  height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  transition:
+    background 0.18s var(--ease-out),
+    border-color 0.18s var(--ease-out);
+}
+
+.toggle-track > span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+  transition:
+    transform 0.18s var(--ease-out),
+    background 0.18s var(--ease-out);
+}
+
+.toggle-control input:checked + .toggle-track,
+.mini-toggle input:checked + .toggle-track {
+  border-color: color-mix(in srgb, var(--ok) 65%, transparent);
+  background: color-mix(in srgb, var(--ok) 24%, var(--bg));
+}
+
+.toggle-control input:checked + .toggle-track > span,
+.mini-toggle input:checked + .toggle-track > span {
+  transform: translateX(18px);
+  background: var(--ok);
+}
+
+.toggle-control input:focus-visible + .toggle-track,
+.mini-toggle input:focus-visible + .toggle-track {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.toggle-control:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.toggle-label {
+  min-width: 52px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.config-section[data-live="true"] .toggle-label {
+  color: var(--ok);
+}
+
+.schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 18px;
+}
+
+.schedule-card,
+.schedule-skeleton {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--card) 94%, transparent);
+}
+
+.schedule-card {
+  position: relative;
+  overflow: hidden;
+  transition:
+    border-color 0.18s var(--ease-out),
+    opacity 0.18s var(--ease-out),
+    transform 0.18s var(--ease-out);
+}
+
+.schedule-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: var(--ok);
+  transition: background 0.18s var(--ease-out);
+}
+
+.schedule-card[data-enabled="false"] {
+  opacity: 0.66;
+}
+
+.schedule-card[data-enabled="false"]::before {
+  background: var(--unknown);
+}
+
+.schedule-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 72px;
+  padding: 15px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+}
+
+.schedule-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+}
+
+.schedule-identity > div {
+  min-width: 0;
+}
+
+.schedule-identity h3 {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-identity p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.day-mark {
+  display: grid;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, var(--line));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-soft));
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.schedule-card-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 11px;
+}
+
+.mini-toggle .toggle-track {
+  width: 34px;
+  height: 20px;
+}
+
+.mini-toggle .toggle-track > span {
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+}
+
+.mini-toggle input:checked + .toggle-track > span {
+  transform: translateX(14px);
+}
+
+.mini-toggle-label {
+  min-width: 43px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.icon-button {
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.14s var(--ease-out),
+    background 0.16s var(--ease-out),
+    color 0.16s var(--ease-out);
+}
+
+.icon-button:active {
+  transform: scale(0.97);
+}
+
+.icon-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 1px;
+}
+
+.schedule-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 13px 10px;
+  padding: 15px 16px 17px;
+}
+
+.config-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.config-field:first-child {
+  grid-column: span 3;
+}
+
+.config-field:last-child {
+  grid-column: span 2;
+}
+
+.field-label {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.config-input,
+.config-select {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  outline: none;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  transition:
+    border-color 0.16s var(--ease-out),
+    box-shadow 0.16s var(--ease-out),
+    background 0.16s var(--ease-out);
+}
+
+.config-input:focus,
+.config-select:focus {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.schedule-empty {
+  display: flex;
+  min-height: 190px;
+  grid-column: 1 / -1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+.schedule-empty strong {
+  color: var(--text);
+}
+
+.schedule-skeleton {
+  min-height: 224px;
+  background: linear-gradient(110deg, var(--card), var(--bg-soft));
+}
+
+.config-footnote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px 18px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.footnote-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.config-footnote code {
+  font-size: 10.5px;
+}
+
+.toast {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  z-index: 50;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 11px 15px;
+  border: 1px solid color-mix(in srgb, var(--ok) 44%, var(--line));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--card) 90%, var(--ok));
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+
+.toast[data-kind="error"] {
+  border-color: color-mix(in srgb, var(--bad) 55%, var(--line));
+  background: color-mix(in srgb, var(--card) 91%, var(--bad));
+}
+
+.toast[data-kind="neutral"] {
+  border-color: var(--line);
+  background: var(--card);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .schedule-card:hover {
+    border-color: color-mix(in srgb, var(--accent) 32%, var(--line));
+  }
+
+  .icon-button.danger:hover {
+    background: color-mix(in srgb, var(--bad) 11%, transparent);
+    color: var(--bad);
+  }
+}
+
 /* Table -------------------------------------------------------------------- */
 .controls {
   display: flex;
@@ -842,6 +1317,12 @@ table.bookings {
   background: color-mix(in srgb, var(--bad) 10%, transparent);
 }
 
+@media (max-width: 980px) {
+  .schedule-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 640px) {
   .topbar {
     padding: 12px 16px;
@@ -849,5 +1330,71 @@ table.bookings {
   }
   main {
     padding: 16px 16px 60px;
+  }
+
+  .topbar-right {
+    width: 100%;
+  }
+
+  .status-pill {
+    margin-right: auto;
+  }
+
+  .config-heading {
+    align-items: flex-start;
+  }
+
+  .config-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .save-state {
+    width: 100%;
+  }
+
+  .automation-panel {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 17px;
+  }
+
+  .schedule-grid {
+    padding: 12px;
+  }
+
+  .schedule-card-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .schedule-card-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .schedule-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .config-field:first-child,
+  .config-field:last-child {
+    grid-column: span 2;
+  }
+
+  .config-footnote {
+    align-items: flex-start;
+    padding: 2px 14px 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

@@ -233,7 +233,9 @@ def test_dashboard_endpoints_serve_locally(environment: Path) -> None:
     try:
         with urllib.request.urlopen(f"{base}/") as response:
             assert response.status == 200
-            assert b"Hayden Room Booker" in response.read()
+            page = response.read()
+            assert b"Hayden Room Booker" in page
+            assert b"Booking schedules" in page
         with urllib.request.urlopen(f"{base}/api/bookings") as response:
             payload = json.loads(response.read())
         assert payload["bookings"][0]["id"] == occurrence_id
