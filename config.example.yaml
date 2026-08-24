@@ -41,6 +41,7 @@ schedules:
     start_time: "13:30"
     end_time: "15:30"
     room_preferences:
+      - "Study Room C19"
       - "Study Room 311A"
       - "Study Room 311B"
       - "Study Room 311C"
@@ -52,6 +53,7 @@ schedules:
     start_time: "13:00"
     end_time: "15:00"
     room_preferences:
+      - "Study Room C19"
       - "Study Room 311A"
       - "Study Room 311B"
       - "Study Room 311C"
@@ -64,7 +66,6 @@ schedules:
       - "Study Room C13"
       - "Study Room C15"
       - "Study Room C17"
-      - "Study Room C19"
       - "Study Room C38"
       - "Study Room C40"
       - "Study Room L52"
