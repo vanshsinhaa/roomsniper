@@ -66,6 +66,45 @@ SQLite commits the unique occurrence to `SUBMITTING` before the first booking ac
 in-flight, unknown-result, and stale-submission occurrences cannot be resubmitted automatically.
 Explicit room conflicts are the only post-submit outcome eligible for a bounded retry.
 
+## Automatic Google / Notion Calendar events
+
+The optional Google Calendar integration creates an event immediately after LibCal confirms a
+room. Notion Calendar displays events from connected Google accounts, so the event appears there
+without a separate Notion integration or the manual **Add to Google Calendar** confirmation step.
+Calendar delivery is deliberately downstream of booking confirmation: an expired Google token or
+Calendar API outage cannot change a confirmed room into a failed booking. Upcoming unsynced events
+are retried on later live runs, using a deterministic Google event ID to prevent duplicates.
+
+One-time setup:
+
+1. In Google Cloud, enable the
+   [Google Calendar API](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com)
+   for a project.
+2. Configure its OAuth consent screen, then create an OAuth client with application type
+   **Desktop app** and download the client JSON. Keep that file outside this repository.
+3. Authorize Hayden Booker in your browser:
+
+   ```powershell
+   hayden-booker calendar connect --credentials C:\path\to\client_secret.json
+   ```
+
+4. Enable delivery in `config.yaml`:
+
+   ```yaml
+   calendar:
+     enabled: true
+     calendar_id: "primary"
+     request_timeout_seconds: 20
+   ```
+
+5. Confirm the local state with `hayden-booker calendar status` and `hayden-booker doctor`.
+
+`primary` is the signed-in account's main calendar. To use another calendar you own, put its
+Google Calendar ID in `calendar_id`. The OAuth refresh token is stored only in the operating-system
+credential store; neither the token nor the OAuth client file is written to SQLite or logs. If an
+automatic add fails, the booking detail shows the reason and retains the manual Google/`.ics`
+fallbacks. Re-run `calendar connect` if Google authorization is revoked or expires.
+
 ## Dashboard
 
 ```powershell
@@ -75,8 +114,8 @@ hayden-booker ui
 `ui` serves a local dashboard on `http://127.0.0.1:8787` (loopback only, `--port` to change,
 `--no-open` to skip launching a browser). It shows whether the system is active — configuration,
 school-ID secret, ASU sign-in, scheduled task, database, recent run activity, and profile lock —
-plus the booking history with a detail card per occurrence, its attempt timeline, and
-**Add to Google Calendar** / `.ics` buttons.
+plus the booking history with a detail card per occurrence, its attempt timeline, automatic
+Google Calendar delivery state, and manual **Add to Google Calendar** / `.ics` fallbacks.
 
 The **Booking schedules** workspace edits schedule names, active/paused state, weekday, start/end
 time, preferred room, and the master Live/Dry-run setting. **Save changes** validates the entire
@@ -108,7 +147,8 @@ hayden-booker doctor
 Runtime data defaults to `~/.hayden-booker`. Set `HAYDEN_BOOKER_DATA_DIR` to relocate it. Logs are
 rotated daily and retained for 14 files. Screenshots are off by default, stay local, and may
 contain personal information. URLs are recorded without query strings. The database and logs
-never contain the school ID, passwords, Duo data, cookies, or local-storage contents.
+never contain the school ID, Google OAuth token, passwords, Duo data, cookies, or local-storage
+contents.
 
 Install the Windows scheduled task only after manually reviewing the command:
 
