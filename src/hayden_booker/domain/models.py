@@ -66,3 +66,6 @@ class ReservationOccurrence(BaseModel):
     last_error_code: str | None
     last_error_summary: str | None
     acknowledged_at_utc: datetime | None = None
+    calendar_event_id: str | None = None
+    calendar_synced_at_utc: datetime | None = None
+    calendar_sync_error: str | None = None

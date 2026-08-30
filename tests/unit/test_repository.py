@@ -70,3 +70,22 @@ def test_database_never_has_secret_columns(tmp_path: Path) -> None:
         for row in repo.connection.execute("PRAGMA table_info(reservation_occurrences)")
     }
     assert not {"school_id", "password", "cookie", "token"} & names
+
+
+def test_calendar_sync_state_is_idempotent_and_queryable(tmp_path: Path) -> None:
+    repo = repository(tmp_path / "history.sqlite3")
+    occurrence = repo.ensure_occurrence(key()).occurrence
+    repo.update_status(occurrence.id, AttemptStatus.CONFIRMED, room="Study Room 311A")
+
+    pending = repo.list_pending_calendar_syncs(on_or_after=date(2026, 8, 24))
+    assert [item.id for item in pending] == [occurrence.id]
+
+    failed = repo.record_calendar_sync_failure(occurrence.id, "Authorization expired")
+    assert failed.status is AttemptStatus.CONFIRMED
+    assert failed.calendar_sync_error == "Authorization expired"
+
+    synced = repo.mark_calendar_synced(occurrence.id, event_id="abc123")
+    assert synced.calendar_event_id == "abc123"
+    assert synced.calendar_synced_at_utc is not None
+    assert synced.calendar_sync_error is None
+    assert repo.list_pending_calendar_syncs(on_or_after=date(2026, 8, 24)) == []

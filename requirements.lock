@@ -1,9 +1,12 @@
 # Reproducible baseline for Python 3.12. Regenerate intentionally when upgrading.
 filelock==3.16.1
+google-auth==2.57.0
+google-auth-oauthlib==1.4.1
 keyring==25.4.1
 playwright==1.48.0
 pydantic==2.9.2
 PyYAML==6.0.2
+requests==2.34.2
 tzdata==2026.3
 typer==0.13.0
 

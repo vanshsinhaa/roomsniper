@@ -88,6 +88,22 @@ class NotificationsConfig(ConfigModel):
     notify_on_failure: bool = True
 
 
+class CalendarConfig(ConfigModel):
+    enabled: bool = False
+    calendar_id: str = Field(default="primary", min_length=1, max_length=1024)
+    request_timeout_seconds: int = Field(default=20, ge=5, le=60)
+
+    @field_validator("calendar_id")
+    @classmethod
+    def valid_calendar_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("calendar.calendar_id cannot be empty")
+        if any(character.isspace() for character in normalized):
+            raise ValueError("calendar.calendar_id cannot contain whitespace")
+        return normalized
+
+
 class DiagnosticsConfig(ConfigModel):
     capture_screenshots: bool = False
     screenshot_retention_days: int = Field(default=7, ge=1, le=30)
@@ -151,6 +167,7 @@ class AppConfig(ConfigModel):
     browser: BrowserConfig = Field(default_factory=BrowserConfig)
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
     notifications: NotificationsConfig = Field(default_factory=NotificationsConfig)
+    calendar: CalendarConfig = Field(default_factory=CalendarConfig)
     diagnostics: DiagnosticsConfig = Field(default_factory=DiagnosticsConfig)
     schedules: list[ScheduleRule] = Field(min_length=1)
 

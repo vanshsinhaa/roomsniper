@@ -19,7 +19,16 @@ def valid_data() -> dict[str, object]:
 def test_sample_configuration_is_valid() -> None:
     config = AppConfig.model_validate(valid_data())
     assert config.schedules[0].duration_minutes == 120
+    assert config.calendar.enabled is False
+    assert config.calendar.calendar_id == "primary"
     assert collect_unknown_keys(config) == []
+
+
+def test_calendar_id_cannot_be_blank_or_contain_whitespace() -> None:
+    data = valid_data()
+    data["calendar"]["calendar_id"] = "bad calendar"  # type: ignore[index]
+    with pytest.raises(ValidationError, match="cannot contain whitespace"):
+        AppConfig.model_validate(data)
 
 
 @pytest.mark.parametrize(

@@ -1,6 +1,8 @@
 # Local configuration and credentials
 config.yaml
 .env
+client_secret*.json
+google-calendar-client*.json
 
 # Runtime data (may contain personal information)
 *.sqlite3

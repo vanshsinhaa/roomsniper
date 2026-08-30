@@ -12,10 +12,13 @@ license = { text = "MIT" }
 authors = [{ name = "Hayden Room Booker contributors" }]
 dependencies = [
   "filelock>=3.15,<4",
+  "google-auth>=2.35,<3",
+  "google-auth-oauthlib>=1.2,<2",
   "keyring>=25.2,<26",
   "playwright>=1.47,<2",
   "pydantic>=2.8,<3",
   "PyYAML>=6.0,<7",
+  "requests>=2.32,<3",
   "tzdata>=2024.1",
   "typer>=0.12,<1",
 ]
@@ -63,5 +66,5 @@ mypy_path = "src"
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["keyring", "keyring.errors", "yaml"]
+module = ["google.*", "google_auth_oauthlib.*", "keyring", "keyring.errors", "yaml"]
 ignore_missing_imports = true

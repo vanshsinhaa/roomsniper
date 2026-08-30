@@ -1267,11 +1267,17 @@ table.bookings {
   margin-bottom: 14px;
 }
 
-.detail-actions a {
+.detail-actions a,
+.detail-actions .calendar-added {
   text-decoration: none;
   display: inline-flex;
   align-items: center;
   gap: 7px;
+}
+
+.detail-actions .calendar-added {
+  color: var(--good);
+  cursor: default;
 }
 
 .timeline {

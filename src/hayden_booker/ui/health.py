@@ -17,7 +17,11 @@ from hayden_booker.security.browser_state import (
     browser_auth_state_exists,
     browser_auth_state_path,
 )
-from hayden_booker.security.secrets import SecretStoreError, school_id_exists
+from hayden_booker.security.secrets import (
+    SecretStoreError,
+    google_calendar_credentials_exist,
+    school_id_exists,
+)
 from hayden_booker.ui.scheduler_task import read_scheduler_task
 
 OK = "ok"
@@ -59,6 +63,7 @@ def build_status(config_path: Path) -> dict[str, Any]:
     checks: list[Check] = [
         config_check,
         _secret_check(config),
+        _calendar_check(config),
         _auth_check(events),
         _scheduler_check(config),
         database_check,
@@ -143,6 +148,41 @@ def _secret_check(config: AppConfig | None) -> Check:
         ERROR if live else ATTENTION,
         "No school ID is stored; live booking cannot submit.",
         "Run `hayden-booker secret set-school-id`.",
+    )
+
+
+def _calendar_check(config: AppConfig | None) -> Check:
+    if config is None or not config.calendar.enabled:
+        return Check(
+            "calendar",
+            "Google Calendar",
+            OK,
+            "Automatic adds are off.",
+            "Connect Google Calendar, then set `calendar.enabled: true` to enable them.",
+        )
+    try:
+        connected = google_calendar_credentials_exist()
+    except SecretStoreError as exc:
+        return Check(
+            "calendar",
+            "Google Calendar",
+            ERROR,
+            f"Credential store unavailable: {exc}",
+            "Install a supported keyring backend, then reconnect Google Calendar.",
+        )
+    if connected:
+        return Check(
+            "calendar",
+            "Google Calendar",
+            OK,
+            "Connected; confirmed bookings are added automatically.",
+        )
+    return Check(
+        "calendar",
+        "Google Calendar",
+        ERROR,
+        "Automatic adds are enabled, but Google Calendar is not connected.",
+        "Run `hayden-booker calendar connect --credentials CLIENT_SECRET.json`.",
     )
 
 
@@ -460,6 +500,7 @@ def _config_summary(config: AppConfig | None, config_path: Path) -> dict[str, An
         "path": str(config_path),
         "timezone": config.timezone,
         "live_booking_enabled": config.live_booking_enabled,
+        "calendar_enabled": config.calendar.enabled,
         "release_time": config.scheduler.assumed_release_time,
         "schedules": [
             {

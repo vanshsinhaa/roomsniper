@@ -36,6 +36,7 @@ from hayden_booker.errors import BookerError, SiteChangedError
 from hayden_booker.logging_setup import EventLogger
 from hayden_booker.persistence.repository import ReservationRepository
 from hayden_booker.security.secrets import SecretStoreError, get_school_id
+from hayden_booker.services.google_calendar import CalendarSyncError, GoogleCalendarClient
 from hayden_booker.services.notifier import Notifier
 
 
@@ -50,6 +51,7 @@ class BookingRunner:
         self.repository = repository
         self.logger = logger
         self.notifier = Notifier(config.notifications)
+        self.calendar = GoogleCalendarClient(config.calendar, zone=config.zone)
 
     async def run(
         self,
@@ -89,6 +91,9 @@ class BookingRunner:
                     ExitCode.SECRET_MISSING,
                     "Run `hayden-booker secret set-school-id`.",
                 )
+        today = datetime.now(self.config.zone).date()
+        if live and self.config.calendar.enabled:
+            await self._reconcile_calendar(today)
         headless = self.config.browser.scheduled_headless
         results: list[RunResult] = []
         async with BrowserSession(self.config, headless=headless) as session:
@@ -99,7 +104,6 @@ class BookingRunner:
             self.logger.event("authentication_checked", status=auth_state.value)
             date_options = await read_date_options(page)
             offered_dates = [option.local_date for option in date_options]
-            today = datetime.now(self.config.zone).date()
             for rule in rules:
                 resolved = target_date or resolve_target_date(
                     offered_dates,
@@ -185,10 +189,11 @@ class BookingRunner:
         acquired = self.repository.ensure_occurrence(key)
         occurrence = acquired.occurrence
         if occurrence.status is AttemptStatus.CONFIRMED:
+            calendar_note = await self._sync_calendar(occurrence.id)
             return RunResult(
                 AttemptStatus.CONFIRMED,
                 ExitCode.OK,
-                "Occurrence was already confirmed; no submission was made.",
+                "Occurrence was already confirmed; no submission was made." + calendar_note,
                 occurrence.id,
                 occurrence.chosen_room,
                 occurrence.confirmation_reference,
@@ -459,13 +464,15 @@ class BookingRunner:
                     room=match.room,
                     status=AttemptStatus.CONFIRMED.value,
                 )
+                calendar_note = await self._sync_calendar(occurrence_id)
                 self.notifier.success(
-                    f"{match.room}, {target_date.isoformat()}, {rule.start_time}-{rule.end_time}"
+                    f"{match.room}, {target_date.isoformat()}, "
+                    f"{rule.start_time}-{rule.end_time}.{calendar_note}"
                 )
                 return RunResult(
                     AttemptStatus.CONFIRMED,
                     ExitCode.OK,
-                    result.message,
+                    result.message + calendar_note,
                     occurrence_id,
                     match.room,
                     result.confirmation_reference,
@@ -530,6 +537,40 @@ class BookingRunner:
             "Booking attempts were exhausted.",
             occurrence_id,
         )
+
+    async def _reconcile_calendar(self, today: date) -> None:
+        pending = self.repository.list_pending_calendar_syncs(on_or_after=today, limit=20)
+        for occurrence in pending:
+            await self._sync_calendar(occurrence.id)
+
+    async def _sync_calendar(self, occurrence_id: str) -> str:
+        if not self.config.calendar.enabled:
+            return ""
+        occurrence = self.repository.get(occurrence_id)
+        if occurrence.calendar_synced_at_utc is not None:
+            return " Already present in Google Calendar."
+        try:
+            synced = await asyncio.to_thread(self.calendar.add_confirmed_booking, occurrence)
+        except CalendarSyncError as exc:
+            self.repository.record_calendar_sync_failure(occurrence_id, str(exc))
+            self.logger.event(
+                "calendar_sync_failed",
+                level=logging.ERROR,
+                error_code="GOOGLE_CALENDAR_SYNC_FAILED",
+                occurrence_id=occurrence_id,
+            )
+            return " Google Calendar add failed; the room booking is still confirmed."
+        self.repository.mark_calendar_synced(
+            occurrence_id,
+            event_id=synced.event_id,
+            already_existed=synced.already_existed,
+        )
+        self.logger.event(
+            "calendar_synced",
+            occurrence_id=occurrence_id,
+            status="existing" if synced.already_existed else "created",
+        )
+        return " Added to Google Calendar."
 
     async def _diagnose(self, page: object, occurrence_id: str) -> None:
         from playwright.async_api import Page

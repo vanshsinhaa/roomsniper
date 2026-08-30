@@ -5,6 +5,7 @@ from enum import IntEnum, StrEnum
 APP_NAME = "hayden-booker"
 KEYRING_SERVICE = "hayden-room-booker"
 KEYRING_SCHOOL_ID_KEY = "school-id"
+KEYRING_GOOGLE_CALENDAR_KEY = "google-calendar-oauth"
 DEFAULT_DATA_DIR_NAME = ".hayden-booker"
 
 KNOWN_ROOMS: tuple[str, ...] = (

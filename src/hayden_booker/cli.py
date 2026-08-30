@@ -30,8 +30,13 @@ from hayden_booker.security.browser_state import (
 )
 from hayden_booker.security.secrets import (
     SecretStoreError,
+    google_calendar_credentials_exist,
     school_id_exists,
     set_school_id_interactive,
+)
+from hayden_booker.services.google_calendar import (
+    CalendarAuthorizationError,
+    authorize_google_calendar,
 )
 from hayden_booker.services.release_observer import observe_release
 from hayden_booker.services.runner import BookingRunner
@@ -46,10 +51,12 @@ auth_app = typer.Typer(help="Manage the dedicated ASU browser session.")
 secret_app = typer.Typer(help="Store sensitive values in the operating-system credential store.")
 config_app = typer.Typer(help="Validate configuration.")
 schedule_app = typer.Typer(help="Inspect recurring schedules.")
+calendar_app = typer.Typer(help="Connect automatic Google Calendar event delivery.")
 app.add_typer(auth_app, name="auth")
 app.add_typer(secret_app, name="secret")
 app.add_typer(config_app, name="config")
 app.add_typer(schedule_app, name="schedule")
+app.add_typer(calendar_app, name="calendar")
 
 
 @dataclass(slots=True)
@@ -102,6 +109,13 @@ def validate_command(ctx: typer.Context) -> None:
                 ExitCode.SECRET_MISSING,
                 "Run `hayden-booker secret set-school-id`.",
             )
+        if config.calendar.enabled and not google_calendar_credentials_exist():
+            _fail(
+                "GOOGLE_CALENDAR_AUTH_MISSING",
+                "Automatic calendar adds are enabled, but Google Calendar is not connected.",
+                ExitCode.AUTH_REQUIRED,
+                "Run `hayden-booker calendar connect --credentials CLIENT_SECRET.json`.",
+            )
         typer.echo(f"Configuration valid: {len(config.schedules)} schedule(s)")
     except (ValueError, SecretStoreError) as exc:
         _fail(
@@ -139,6 +153,56 @@ def set_school_id_command() -> None:
             "Install a supported keyring backend and retry.",
         )
     typer.echo("School ID stored in the operating-system credential store.")
+
+
+@calendar_app.command("connect")
+def calendar_connect_command(
+    ctx: typer.Context,
+    credentials: Annotated[
+        Path,
+        typer.Option(
+            "--credentials",
+            help="Downloaded Google OAuth desktop-client JSON file.",
+            dir_okay=False,
+            exists=True,
+            readable=True,
+        ),
+    ],
+) -> None:
+    """Authorize event creation and keep the resulting token in the OS credential store."""
+    config, _ = _load_or_exit(ctx)
+    try:
+        authorize_google_calendar(credentials.resolve())
+    except (CalendarAuthorizationError, SecretStoreError) as exc:
+        _fail(
+            "GOOGLE_CALENDAR_AUTH_FAILED",
+            str(exc),
+            ExitCode.AUTH_REQUIRED,
+            "Check the OAuth desktop-client file and run `hayden-booker calendar connect` again.",
+        )
+    typer.echo("Google Calendar authorization stored in the operating-system credential store.")
+    if config.calendar.enabled:
+        typer.echo(f"Confirmed bookings will be added to calendar {config.calendar.calendar_id!r}.")
+    else:
+        typer.echo("Set `calendar.enabled: true` in config.yaml to turn on automatic adds.")
+
+
+@calendar_app.command("status")
+def calendar_status_command(ctx: typer.Context) -> None:
+    """Show connection and automatic-add state without printing credentials."""
+    config, _ = _load_or_exit(ctx)
+    try:
+        connected = google_calendar_credentials_exist()
+    except SecretStoreError as exc:
+        _fail(
+            "SECRET_STORE_UNAVAILABLE",
+            str(exc),
+            ExitCode.SECRET_MISSING,
+            "Install a supported keyring backend and retry.",
+        )
+    typer.echo(f"Google Calendar authorization: {'connected' if connected else 'not connected'}")
+    typer.echo(f"Automatic adds: {'enabled' if config.calendar.enabled else 'disabled'}")
+    typer.echo(f"Destination calendar: {config.calendar.calendar_id}")
 
 
 @auth_app.command("setup")
@@ -418,6 +482,22 @@ def doctor_command(ctx: typer.Context) -> None:
         typer.echo(f"School-ID secret: {'present' if secret_exists else 'missing'}")
     if config.live_booking_enabled and not secret_exists:
         failures.append((ExitCode.SECRET_MISSING, "Run `hayden-booker secret set-school-id`."))
+    if config.calendar.enabled:
+        try:
+            calendar_connected = google_calendar_credentials_exist()
+        except SecretStoreError as exc:
+            calendar_connected = False
+            typer.echo(f"Google Calendar authorization: unavailable ({exc})")
+        else:
+            state_label = "connected" if calendar_connected else "missing"
+            typer.echo(f"Google Calendar authorization: {state_label}")
+        if not calendar_connected:
+            failures.append(
+                (
+                    ExitCode.AUTH_REQUIRED,
+                    "Run `hayden-booker calendar connect --credentials CLIENT_SECRET.json`.",
+                )
+            )
     auth_state_exists = browser_auth_state_exists()
     typer.echo(f"Saved browser session: {'present' if auth_state_exists else 'missing'}")
     if not auth_state_exists:

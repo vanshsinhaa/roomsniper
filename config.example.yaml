@@ -30,6 +30,11 @@ notifications:
   notify_on_auth_required: true
   notify_on_failure: true
 
+calendar:
+  enabled: false
+  calendar_id: "primary"
+  request_timeout_seconds: 20
+
 diagnostics:
   capture_screenshots: false
   screenshot_retention_days: 7

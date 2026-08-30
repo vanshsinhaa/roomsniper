@@ -143,6 +143,8 @@ def test_booking_payload_builds_calendar_links(environment: Path) -> None:
     assert google.startswith("https://calendar.google.com/calendar/render?")
     assert "dates=20260824T140000%2F20260824T150000" in google
     assert "ctz=America%2FPhoenix" in google
+    assert booking["calendar"]["synced"] is False
+    assert booking["calendar"]["sync_error"] is None
 
 
 def test_ics_document_uses_utc_instants(environment: Path) -> None:

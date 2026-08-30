@@ -217,6 +217,79 @@ class ReservationRepository:
         ).fetchall()
         return [_occurrence_from_row(row) for row in rows]
 
+    def list_pending_calendar_syncs(
+        self,
+        *,
+        on_or_after: date,
+        limit: int = 50,
+    ) -> list[ReservationOccurrence]:
+        rows = self.connection.execute(
+            """
+            SELECT * FROM reservation_occurrences
+            WHERE status = ? AND calendar_synced_at_utc IS NULL AND target_date >= ?
+            ORDER BY target_date ASC, start_time ASC LIMIT ?
+            """,
+            (AttemptStatus.CONFIRMED.value, on_or_after.isoformat(), limit),
+        ).fetchall()
+        return [_occurrence_from_row(row) for row in rows]
+
+    def mark_calendar_synced(
+        self,
+        occurrence_id: str,
+        *,
+        event_id: str,
+        already_existed: bool = False,
+    ) -> ReservationOccurrence:
+        now = _utc_now()
+        with self.connection:
+            cursor = self.connection.execute(
+                """
+                UPDATE reservation_occurrences
+                SET calendar_event_id = ?, calendar_synced_at_utc = ?,
+                    calendar_sync_error = NULL, updated_at_utc = ?
+                WHERE id = ? AND status = ?
+                """,
+                (
+                    event_id,
+                    now,
+                    now,
+                    occurrence_id,
+                    AttemptStatus.CONFIRMED.value,
+                ),
+            )
+            if cursor.rowcount == 0:
+                raise ValueError("only a confirmed occurrence can be marked calendar-synced")
+            self.add_event(
+                occurrence_id,
+                "calendar_synced",
+                details={"event_id": event_id, "already_existed": already_existed},
+            )
+        return self.get(occurrence_id)
+
+    def record_calendar_sync_failure(
+        self,
+        occurrence_id: str,
+        error_summary: str,
+    ) -> ReservationOccurrence:
+        summary = error_summary.strip()[:500] or "Unknown Google Calendar error."
+        current = self.get(occurrence_id)
+        with self.connection:
+            self.connection.execute(
+                """
+                UPDATE reservation_occurrences
+                SET calendar_sync_error = ?, updated_at_utc = ?
+                WHERE id = ? AND calendar_synced_at_utc IS NULL
+                """,
+                (summary, _utc_now(), occurrence_id),
+            )
+            if current.calendar_sync_error != summary:
+                self.add_event(
+                    occurrence_id,
+                    "calendar_sync_failed",
+                    details={"summary": summary},
+                )
+        return self.get(occurrence_id)
+
     def acknowledge(self, occurrence_id: str) -> ReservationOccurrence:
         """Record that a human reviewed this occurrence.
 
@@ -346,5 +419,16 @@ def _occurrence_from_row(row: sqlite3.Row) -> ReservationOccurrence:
         ),
         acknowledged_at_utc=_parse_utc(
             str(row["acknowledged_at_utc"]) if row["acknowledged_at_utc"] is not None else None
+        ),
+        calendar_event_id=(
+            str(row["calendar_event_id"]) if row["calendar_event_id"] is not None else None
+        ),
+        calendar_synced_at_utc=_parse_utc(
+            str(row["calendar_synced_at_utc"])
+            if row["calendar_synced_at_utc"] is not None
+            else None
+        ),
+        calendar_sync_error=(
+            str(row["calendar_sync_error"]) if row["calendar_sync_error"] is not None else None
         ),
     )

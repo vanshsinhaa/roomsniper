@@ -747,16 +747,20 @@ function renderDetail(booking) {
     })(),
   ]);
 
+  const googleAction = booking.calendar.synced
+    ? el("span", { className: "button calendar-added", text: "Added to Google Calendar" })
+    : el("a", {
+        className: "button primary",
+        text: "Add to Google Calendar",
+        attrs: {
+          href: booking.calendar.google_url,
+          target: "_blank",
+          rel: "noopener noreferrer",
+        },
+      });
+
   const actions = el("div", { className: "detail-actions" }, [
-    el("a", {
-      className: "button primary",
-      text: "Add to Google Calendar",
-      attrs: {
-        href: booking.calendar.google_url,
-        target: "_blank",
-        rel: "noopener noreferrer",
-      },
-    }),
+    googleAction,
     el("a", {
       className: "button",
       text: "Download .ics",
@@ -773,6 +777,14 @@ function renderDetail(booking) {
     ["Attempts", String(booking.attempt_count)],
     ["Confirmed at", formatStamp(booking.confirmed_at_utc)],
     ["Confirmation", booking.confirmation_reference || "—"],
+    [
+      "Google Calendar",
+      booking.calendar.synced
+        ? `Added ${formatStamp(booking.calendar.synced_at_utc)}`
+        : booking.calendar.sync_error
+          ? "Automatic add failed; manual option available above"
+          : "Not added automatically",
+    ],
     ["Last updated", formatStamp(booking.updated_at_utc)],
     ["Timezone", booking.timezone],
     ["Occurrence ID", booking.id],
@@ -794,6 +806,15 @@ function renderDetail(booking) {
       el("div", {
         className: "error-note",
         text: `${booking.last_error_code}: ${booking.last_error_summary || ""}`,
+      }),
+    );
+  }
+
+  if (booking.calendar.sync_error) {
+    summary.appendChild(
+      el("div", {
+        className: "error-note",
+        text: `Google Calendar: ${booking.calendar.sync_error}`,
       }),
     );
   }

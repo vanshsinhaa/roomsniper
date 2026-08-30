@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from getpass import getpass
 
-from hayden_booker.constants import KEYRING_SCHOOL_ID_KEY, KEYRING_SERVICE
+from hayden_booker.constants import (
+    KEYRING_GOOGLE_CALENDAR_KEY,
+    KEYRING_SCHOOL_ID_KEY,
+    KEYRING_SERVICE,
+)
 
 
 class SecretStoreError(RuntimeError):
@@ -35,9 +39,37 @@ def set_school_id_interactive() -> None:
 
 
 def get_school_id() -> str | None:
+    return _get_secret(KEYRING_SCHOOL_ID_KEY)
+
+
+def set_google_calendar_credentials(serialized_credentials: str) -> None:
+    if not serialized_credentials:
+        raise SecretStoreError("Google Calendar credentials cannot be empty")
+    _set_secret(KEYRING_GOOGLE_CALENDAR_KEY, serialized_credentials, "Google Calendar credentials")
+
+
+def get_google_calendar_credentials() -> str | None:
+    return _get_secret(KEYRING_GOOGLE_CALENDAR_KEY)
+
+
+def google_calendar_credentials_exist() -> bool:
+    return get_google_calendar_credentials() is not None
+
+
+def _set_secret(key: str, value: str, label: str) -> None:
     keyring = _keyring_module()
     try:
-        value = keyring.get_password(KEYRING_SERVICE, KEYRING_SCHOOL_ID_KEY)  # type: ignore[attr-defined]
+        keyring.set_password(KEYRING_SERVICE, key, value)  # type: ignore[attr-defined]
+    except Exception as exc:
+        raise SecretStoreError(
+            f"credential store rejected the {label}: {type(exc).__name__}"
+        ) from exc
+
+
+def _get_secret(key: str) -> str | None:
+    keyring = _keyring_module()
+    try:
+        value = keyring.get_password(KEYRING_SERVICE, key)  # type: ignore[attr-defined]
     except Exception as exc:
         raise SecretStoreError(f"credential store is unavailable: {type(exc).__name__}") from exc
     return str(value) if value else None

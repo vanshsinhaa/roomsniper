@@ -51,6 +51,14 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
         ALTER TABLE reservation_occurrences ADD COLUMN acknowledged_at_utc TEXT;
         """,
     ),
+    (
+        3,
+        """
+        ALTER TABLE reservation_occurrences ADD COLUMN calendar_event_id TEXT;
+        ALTER TABLE reservation_occurrences ADD COLUMN calendar_synced_at_utc TEXT;
+        ALTER TABLE reservation_occurrences ADD COLUMN calendar_sync_error TEXT;
+        """,
+    ),
 )
 
 

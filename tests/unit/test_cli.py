@@ -14,6 +14,7 @@ def test_cli_help_builds_all_commands() -> None:
     assert result.exit_code == 0
     assert "observe-release" in result.stdout
     assert "doctor" in result.stdout
+    assert "calendar" in result.stdout
 
 
 def test_config_validate_and_schedule_show() -> None:
