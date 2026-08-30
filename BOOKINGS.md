@@ -6,16 +6,16 @@ table.
 
 ## Summary
 
-- Attempts logged: **13**
-- Confirmed bookings: **8**
-- Hours reserved: **13.5**
-- Favourite room: **Study Room C19 (4 bookings)**
+- Attempts logged: **14**
+- Confirmed bookings: **9**
+- Hours reserved: **15.5**
+- Favourite room: **Study Room C19 (5 bookings)**
 
 ## Rooms
 
 | Room | Confirmed bookings |
 | --- | --- |
-| Study Room C19 | 4 |
+| Study Room C19 | 5 |
 | Study Room 311A | 1 |
 | Study Room 311C | 1 |
 | Study Room 342 | 1 |
@@ -25,6 +25,7 @@ table.
 
 | Date | Day | Time | Room | Outcome | Status | Attempts | Logged (UTC) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-09-06 | Sunday | 13:00-15:00 | Study Room C19 | confirmed | CONFIRMED | 1 | 2026-08-30T07:01:26.976952Z |
 | 2026-09-03 | Thursday | 13:00-15:00 | Study Room C19 | confirmed | CONFIRMED | 1 | 2026-08-27T07:02:14.762331Z |
 | 2026-09-02 | Wednesday | 13:00-15:00 | Study Room C19 | confirmed | CONFIRMED | 1 | 2026-08-26T07:01:48.841547Z |
 | 2026-09-01 | Tuesday | 13:00-15:00 | Study Room C19 | confirmed | CONFIRMED | 1 | 2026-08-25T07:02:36.563117Z |
