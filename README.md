@@ -136,6 +136,55 @@ if it exits, and lifts the default task execution time limit. Remove it with
 `.\scripts\remove_windows_task.ps1 -TaskName "Hayden Room Booker UI"`. The booking runs stay on
 their own daily task; the dashboard task serves the views and validated schedule editor only.
 
+## Public booking log
+
+[`BOOKINGS.md`](BOOKINGS.md) mirrors the dashboard history as a Markdown table, and every logged
+booking gets its own commit — backdated to the moment it was logged, authored as the repository
+owner, so the reservation shows up in the contribution graph.
+
+Two files carry the log. [`docs/bookings.json`](docs/bookings.json) is the ledger and the only
+source of truth; `BOOKINGS.md` is generated from it and should never be hand-edited. The ledger
+holds dates, times, room names, statuses, and attempt counts. It never holds the school ID, the
+browser session, or LibCal confirmation references unless you pass `--include-references`.
+
+```powershell
+hayden-booker log export        # merge the local database into the ledger and re-render the table
+hayden-booker log commit        # one backdated commit per booking that is not in the ledger yet
+hayden-booker log commit --dry-run
+hayden-booker log render        # rebuild the table from the ledger alone
+```
+
+`log commit` is also the backfill: run it once and every historical booking already in the
+database becomes its own commit, oldest first, dated when it happened. Review with `git log`
+before pushing.
+
+### GitHub Actions
+
+`.github/workflows/booking-log.yml` keeps the repository in step. It runs on:
+
+- `repository_dispatch` (`booking-logged`) — bookings sent from this machine, one commit each;
+- `push` touching the ledger — re-renders `BOOKINGS.md` if it drifted;
+- `workflow_dispatch` — a manual re-render.
+
+The workflow commits as `VanshSinha18 <54222353+VanshSinha18@users.noreply.github.com>`, the same
+identity as every hand-written commit, so automated and manual history are attributed alike.
+Override with the `BOOKING_AUTHOR_NAME` / `BOOKING_AUTHOR_EMAIL` environment variables. It needs
+no dependencies: `scripts/booking_log_ci.py` uses only the standard library.
+
+To have a live booking reach GitHub on its own, create a fine-grained token with **Contents:
+write** on this repository and let the run publish it:
+
+```powershell
+$env:BOOKING_LOG_TOKEN = "<token>"
+$env:BOOKING_REPO = "vanshsinhaa/roomsniper"
+.\scripts\publish_booking_log.ps1                  # dispatch to the workflow
+.\scripts\publish_booking_log.ps1 -Mode Local -Push # or commit and push from here
+```
+
+Add that line to the scheduled task after `hayden-booker run --live` and each confirmed room
+logs itself. Dispatched payloads are treated as untrusted input: records missing the fields the
+table reads are dropped, and only the ledger and the table are ever written.
+
 ## Operations
 
 ```powershell

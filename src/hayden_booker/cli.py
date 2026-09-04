@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import os
+import subprocess
 import sys
 import webbrowser
 from dataclasses import dataclass
@@ -8,11 +11,23 @@ from datetime import date
 from pathlib import Path
 from typing import Annotated, NoReturn
 
+import requests
 import typer
 from filelock import FileLock
 from filelock import Timeout as FileLockTimeout
 from playwright.async_api import async_playwright
 
+from hayden_booker.booking_log import (
+    LEDGER_PATH,
+    MARKDOWN_PATH,
+    commit_message,
+    load_ledger,
+    merge_records,
+    records_from_repository,
+    render_markdown,
+    sort_records,
+    write_ledger,
+)
 from hayden_booker.browser.auth import classify_auth_state, navigate_and_check_auth
 from hayden_booker.browser.availability import navigate_to_availability
 from hayden_booker.browser.context import BrowserSession, profile_lock_path
@@ -52,11 +67,17 @@ secret_app = typer.Typer(help="Store sensitive values in the operating-system cr
 config_app = typer.Typer(help="Validate configuration.")
 schedule_app = typer.Typer(help="Inspect recurring schedules.")
 calendar_app = typer.Typer(help="Connect automatic Google Calendar event delivery.")
+log_app = typer.Typer(help="Publish the sanitized booking ledger and its Markdown table.")
 app.add_typer(auth_app, name="auth")
 app.add_typer(secret_app, name="secret")
 app.add_typer(config_app, name="config")
 app.add_typer(schedule_app, name="schedule")
 app.add_typer(calendar_app, name="calendar")
+app.add_typer(log_app, name="log")
+
+BOOKING_EVENT_TYPE = "booking-logged"
+DEFAULT_AUTHOR_NAME = "VanshSinha18"
+DEFAULT_AUTHOR_EMAIL = "54222353+VanshSinha18@users.noreply.github.com"
 
 
 @dataclass(slots=True)
@@ -387,6 +408,183 @@ def history_command(
         )
 
 
+@log_app.command("export")
+def log_export_command(
+    ctx: typer.Context,
+    ledger: Annotated[Path, typer.Option("--ledger", help="Ledger JSON path.")] = LEDGER_PATH,
+    markdown: Annotated[
+        Path, typer.Option("--markdown", help="Rendered table path.")
+    ] = MARKDOWN_PATH,
+    limit: Annotated[int, typer.Option("--limit", min=1, max=500)] = 500,
+    include_references: Annotated[
+        bool,
+        typer.Option(
+            "--include-references",
+            help="Also publish LibCal confirmation references (off by default).",
+        ),
+    ] = False,
+) -> None:
+    """Merge the local booking history into the public ledger and re-render the table."""
+    config, _ = _load_or_exit(ctx)
+    repository = ReservationRepository(connect(database_path()))
+    incoming = records_from_repository(
+        repository,
+        timezone=config.timezone,
+        limit=limit,
+        include_references=include_references,
+    )
+    merged = merge_records(load_ledger(ledger), incoming)
+    write_ledger(ledger, merged)
+    markdown.write_text(render_markdown(merged), encoding="utf-8")
+    typer.echo(f"Ledger: {ledger} ({len(merged)} booking(s))")
+    typer.echo(f"Table: {markdown}")
+
+
+@log_app.command("render")
+def log_render_command(
+    ledger: Annotated[Path, typer.Option("--ledger", help="Ledger JSON path.")] = LEDGER_PATH,
+    markdown: Annotated[
+        Path, typer.Option("--markdown", help="Rendered table path.")
+    ] = MARKDOWN_PATH,
+) -> None:
+    """Re-render the Markdown table from the ledger alone (no database needed)."""
+    records = load_ledger(ledger)
+    markdown.write_text(render_markdown(records), encoding="utf-8")
+    typer.echo(f"Rendered {len(records)} booking(s) into {markdown}")
+
+
+@log_app.command("ingest")
+def log_ingest_command(
+    payload: Annotated[
+        Path, typer.Option("--payload", help="JSON file holding one record or a list of records.")
+    ],
+    ledger: Annotated[Path, typer.Option("--ledger", help="Ledger JSON path.")] = LEDGER_PATH,
+    markdown: Annotated[
+        Path, typer.Option("--markdown", help="Rendered table path.")
+    ] = MARKDOWN_PATH,
+) -> None:
+    """Merge externally supplied booking records into the ledger (used by CI)."""
+    raw = json.loads(payload.read_text(encoding="utf-8"))
+    if isinstance(raw, dict):
+        incoming = list(raw.get("bookings", [raw])) if "bookings" in raw else [raw]
+    else:
+        incoming = list(raw)
+    incoming = [record for record in incoming if isinstance(record, dict) and record.get("id")]
+    existing = load_ledger(ledger)
+    merged = merge_records(existing, incoming)
+    write_ledger(ledger, merged)
+    markdown.write_text(render_markdown(merged), encoding="utf-8")
+    added = len(merged) - len(existing)
+    typer.echo(f"Ingested {len(incoming)} record(s); {added} new; ledger holds {len(merged)}.")
+
+
+@log_app.command("commit")
+def log_commit_command(
+    ctx: typer.Context,
+    ledger: Annotated[Path, typer.Option("--ledger", help="Ledger JSON path.")] = LEDGER_PATH,
+    markdown: Annotated[
+        Path, typer.Option("--markdown", help="Rendered table path.")
+    ] = MARKDOWN_PATH,
+    limit: Annotated[int, typer.Option("--limit", min=1, max=500)] = 500,
+    backdate: Annotated[
+        bool,
+        typer.Option(
+            "--backdate/--no-backdate",
+            help="Date each commit at the moment the booking was logged.",
+        ),
+    ] = True,
+    include_references: Annotated[bool, typer.Option("--include-references")] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show the commits without creating them.")
+    ] = False,
+) -> None:
+    """Write one git commit per booking that is not in the ledger yet, oldest first."""
+    config, _ = _load_or_exit(ctx)
+    repository = ReservationRepository(connect(database_path()))
+    incoming = records_from_repository(
+        repository,
+        timezone=config.timezone,
+        limit=limit,
+        include_references=include_references,
+    )
+    existing = load_ledger(ledger)
+    known = {record["id"] for record in existing}
+    pending = [record for record in sort_records(incoming) if record["id"] not in known]
+    if not pending:
+        typer.echo("Ledger is already up to date; nothing to commit.")
+        return
+    author = _git_identity()
+    for record in pending:
+        message = commit_message(record)
+        if dry_run:
+            typer.echo(message.splitlines()[0])
+            continue
+        existing = merge_records(existing, [record])
+        write_ledger(ledger, existing)
+        markdown.write_text(render_markdown(existing), encoding="utf-8")
+        stamp = record.get("logged_at_utc") if backdate else None
+        _git_commit([ledger, markdown], message=message, author=author, date=stamp)
+        typer.echo(message.splitlines()[0])
+    if dry_run:
+        typer.echo(f"{len(pending)} commit(s) would be created.")
+    else:
+        typer.echo(f"Created {len(pending)} commit(s). Review with `git log` before pushing.")
+
+
+@log_app.command("publish")
+def log_publish_command(
+    ctx: typer.Context,
+    repo: Annotated[
+        str, typer.Option("--repo", help="GitHub repository as owner/name.", envvar="BOOKING_REPO")
+    ],
+    token: Annotated[
+        str,
+        typer.Option(
+            "--token",
+            help="GitHub token with `repo` scope.",
+            envvar="BOOKING_LOG_TOKEN",
+            prompt=False,
+        ),
+    ],
+    ledger: Annotated[Path, typer.Option("--ledger", help="Ledger JSON path.")] = LEDGER_PATH,
+    limit: Annotated[int, typer.Option("--limit", min=1, max=100)] = 25,
+    include_references: Annotated[bool, typer.Option("--include-references")] = False,
+) -> None:
+    """Send newly logged bookings to the GitHub workflow, which commits them for you."""
+    config, _ = _load_or_exit(ctx)
+    repository = ReservationRepository(connect(database_path()))
+    incoming = records_from_repository(
+        repository,
+        timezone=config.timezone,
+        limit=limit,
+        include_references=include_references,
+    )
+    known = {record["id"] for record in load_ledger(ledger)}
+    pending = [record for record in sort_records(incoming) if record["id"] not in known]
+    if not pending:
+        typer.echo("No unpublished bookings.")
+        return
+    response = requests.post(
+        f"https://api.github.com/repos/{repo}/dispatches",
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+        json={"event_type": BOOKING_EVENT_TYPE, "client_payload": {"bookings": pending}},
+        timeout=30,
+    )
+    if response.status_code != 204:
+        _fail(
+            "PUBLISH_FAILED",
+            f"GitHub returned {response.status_code}: {response.text[:200]}",
+            ExitCode.NETWORK_ERROR,
+            "Check the token scope and repository name, then retry.",
+        )
+    typer.echo(f"Dispatched {len(pending)} booking(s) to {repo}.")
+    typer.echo("The booking-log workflow will commit them; run `git pull` afterwards.")
+
+
 @app.command("ui")
 def ui_command(
     ctx: typer.Context,
@@ -621,6 +819,43 @@ def _ensure_gitignore(path: Path) -> None:
     if missing:
         separator = "" if not existing or existing.endswith("\n") else "\n"
         path.write_text(existing + separator + "\n".join(missing) + "\n", encoding="utf-8")
+
+
+def _git_identity() -> tuple[str, str]:
+    """Author identity for booking commits: env override, then git config, then the default."""
+    name = os.environ.get("BOOKING_AUTHOR_NAME") or _git_config("user.name") or DEFAULT_AUTHOR_NAME
+    email = (
+        os.environ.get("BOOKING_AUTHOR_EMAIL") or _git_config("user.email") or DEFAULT_AUTHOR_EMAIL
+    )
+    return name, email
+
+
+def _git_config(key: str) -> str | None:
+    result = subprocess.run(
+        ["git", "config", "--get", key], capture_output=True, text=True, check=False
+    )
+    value = result.stdout.strip()
+    return value or None
+
+
+def _git_commit(
+    paths: list[Path],
+    *,
+    message: str,
+    author: tuple[str, str],
+    date: str | None,
+) -> None:
+    name, email = author
+    environment = dict(os.environ)
+    environment["GIT_AUTHOR_NAME"] = name
+    environment["GIT_AUTHOR_EMAIL"] = email
+    environment["GIT_COMMITTER_NAME"] = name
+    environment["GIT_COMMITTER_EMAIL"] = email
+    if date:
+        environment["GIT_AUTHOR_DATE"] = date
+        environment["GIT_COMMITTER_DATE"] = date
+    subprocess.run(["git", "add", "--", *[str(path) for path in paths]], check=True)
+    subprocess.run(["git", "commit", "-m", message], check=True, env=environment)
 
 
 def _next_action_for(exit_code: ExitCode) -> str:

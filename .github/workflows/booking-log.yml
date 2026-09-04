@@ -1,0 +1,66 @@
+name: Booking log
+
+# Keeps BOOKINGS.md in step with docs/bookings.json and turns each new booking into its own
+# commit, authored as the repository owner so it lands on the contribution graph.
+#
+#   repository_dispatch  a local `hayden-booker log publish` sent freshly booked rooms
+#   push                 the ledger changed on master, so re-render the table
+#   workflow_dispatch    manual re-render
+
+on:
+  repository_dispatch:
+    types: [booking-logged]
+  push:
+    branches: [master]
+    paths:
+      - docs/bookings.json
+      - scripts/booking_log_ci.py
+      - src/hayden_booker/booking_log.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: booking-log
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    env:
+      BOOKING_AUTHOR_NAME: VanshSinha18
+      BOOKING_AUTHOR_EMAIL: 54222353+VanshSinha18@users.noreply.github.com
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The ledger tooling is deliberately stdlib-only, so there is nothing to install.
+      - name: Save dispatched bookings
+        if: github.event_name == 'repository_dispatch'
+        env:
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: printf '%s' "$PAYLOAD" > "$RUNNER_TEMP/bookings-payload.json"
+
+      - name: Ingest dispatched bookings
+        id: ingest
+        if: github.event_name == 'repository_dispatch'
+        run: python scripts/booking_log_ci.py ingest --payload "$RUNNER_TEMP/bookings-payload.json"
+
+      - name: Re-render table from ledger
+        id: render
+        if: github.event_name != 'repository_dispatch'
+        run: python scripts/booking_log_ci.py render
+
+      - name: Push
+        run: |
+          if [ -z "$(git log origin/${GITHUB_REF_NAME:-master}..HEAD --oneline)" ]; then
+            echo "No new commits."
+            exit 0
+          fi
+          git push origin HEAD:${GITHUB_REF_NAME:-master}
