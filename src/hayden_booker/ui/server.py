@@ -49,6 +49,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
         super().__init__(*args, **kwargs)
 
     # BaseHTTPRequestHandler API ------------------------------------------------
+    def handle(self) -> None:
+        # Browsers drop sockets on refresh, tab close or prefetch; there is no one left to answer.
+        try:
+            super().handle()
+        except ConnectionError:
+            self.close_connection = True
+
     def do_GET(self) -> None:
         if not self._host_allowed():
             self._send_json(HTTPStatus.FORBIDDEN, {"error": "Only local requests are served."})
