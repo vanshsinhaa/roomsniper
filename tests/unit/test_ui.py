@@ -276,6 +276,94 @@ def test_acknowledge_endpoint_requires_the_dashboard_header(environment: Path) -
         server.server_close()
 
 
+def post_dashboard(port: int, path: str, *, header: bool = True) -> tuple[int, dict[str, Any]]:
+    headers = {"Host": "127.0.0.1"}
+    if header:
+        headers["X-Hayden-Dashboard"] = "1"
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        connection.request("POST", path, headers=headers)
+        response = connection.getresponse()
+        return response.status, json.loads(response.read() or b"{}")
+    finally:
+        connection.close()
+
+
+def test_calendar_endpoint_adds_a_confirmed_booking_once(
+    environment: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hayden_booker.services.google_calendar import GoogleCalendarClient, SyncedCalendarEvent
+    from hayden_booker.ui import server as server_module
+
+    repository = seeded_repository()
+    occurrence_id = repository.list_occurrences(limit=1)[0].id
+    repository.connection.close()
+    connected = {"value": False}
+    calls: list[str] = []
+
+    def fake_add(_: GoogleCalendarClient, occurrence: Any) -> SyncedCalendarEvent:
+        calls.append(occurrence.id)
+        return SyncedCalendarEvent("hayden-event-1")
+
+    monkeypatch.setattr(
+        server_module, "google_calendar_credentials_exist", lambda: connected["value"]
+    )
+    monkeypatch.setattr(GoogleCalendarClient, "add_confirmed_booking", fake_add)
+    server = serve(environment)
+    port = server.server_address[1]
+    path = f"/api/bookings/{occurrence_id}/calendar"
+    try:
+        assert post_dashboard(port, path, header=False)[0] == 403
+        status, payload = post_dashboard(port, path)
+        assert status == 409
+        assert "calendar connect" in payload["error"]
+
+        connected["value"] = True
+        for _ in range(2):
+            status, payload = post_dashboard(port, path)
+            assert status == 200
+            assert payload["calendar"]["synced"] is True
+            assert payload["calendar"]["event_id"] == "hayden-event-1"
+        assert calls == [occurrence_id], "a second click must not create a duplicate event"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_calendar_endpoint_records_google_failures(
+    environment: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hayden_booker.config import database_path
+    from hayden_booker.services.google_calendar import CalendarSyncError, GoogleCalendarClient
+    from hayden_booker.ui import server as server_module
+
+    repository = seeded_repository()
+    occurrence_id = repository.list_occurrences(limit=1)[0].id
+    repository.connection.close()
+
+    def failing_add(_: GoogleCalendarClient, __: Any) -> None:
+        raise CalendarSyncError("Google Calendar API returned HTTP 403: insufficient scope")
+
+    monkeypatch.setattr(server_module, "google_calendar_credentials_exist", lambda: True)
+    monkeypatch.setattr(GoogleCalendarClient, "add_confirmed_booking", failing_add)
+    server = serve(environment)
+    try:
+        status, payload = post_dashboard(
+            server.server_address[1], f"/api/bookings/{occurrence_id}/calendar"
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert status == 502
+    assert "HTTP 403" in payload["error"]
+    repository = ReservationRepository(connect(database_path()))
+    occurrence = repository.get(occurrence_id)
+    repository.connection.close()
+    assert occurrence.calendar_synced_at_utc is None
+    assert occurrence.calendar_sync_error and "HTTP 403" in occurrence.calendar_sync_error
+
+
 def test_config_endpoint_validates_and_persists_editable_settings(environment: Path) -> None:
     server = serve(environment)
     port = server.server_address[1]

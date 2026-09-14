@@ -492,6 +492,13 @@ def read_log_events(*, limit: int = 200) -> list[dict[str, Any]]:
     return events[-limit:]
 
 
+def _calendar_connected() -> bool:
+    try:
+        return google_calendar_credentials_exist()
+    except SecretStoreError:
+        return False
+
+
 def _config_summary(config: AppConfig | None, config_path: Path) -> dict[str, Any]:
     if config is None:
         return {"valid": False, "path": str(config_path)}
@@ -501,6 +508,7 @@ def _config_summary(config: AppConfig | None, config_path: Path) -> dict[str, An
         "timezone": config.timezone,
         "live_booking_enabled": config.live_booking_enabled,
         "calendar_enabled": config.calendar.enabled,
+        "calendar_connected": _calendar_connected(),
         "release_time": config.scheduler.assumed_release_time,
         "schedules": [
             {

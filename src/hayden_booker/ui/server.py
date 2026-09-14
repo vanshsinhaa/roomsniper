@@ -12,8 +12,11 @@ from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
 from hayden_booker.config import database_path, load_config
+from hayden_booker.constants import AttemptStatus
 from hayden_booker.persistence.database import connect
 from hayden_booker.persistence.repository import ReservationRepository
+from hayden_booker.security.secrets import SecretStoreError, google_calendar_credentials_exist
+from hayden_booker.services.google_calendar import CalendarSyncError, GoogleCalendarClient
 from hayden_booker.ui import health, history
 from hayden_booker.ui.config_editor import (
     ConfigEditError,
@@ -96,6 +99,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(HTTPStatus.OK, payload)
             return
+        calendar = re.fullmatch(r"/api/bookings/([^/]+)/calendar", path)
+        if calendar:
+            self._add_to_calendar(calendar.group(1))
+            return
         acknowledge = re.fullmatch(r"/api/bookings/([^/]+)/acknowledge", path)
         if not acknowledge:
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
@@ -117,6 +124,55 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format: str, *args: Any) -> None:
         return
+
+    def _add_to_calendar(self, raw_id: str) -> None:
+        """One-click Google Calendar add, using the runner's deterministic event ID."""
+        try:
+            occurrence_id = _validated_id(raw_id)
+            if not google_calendar_credentials_exist():
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "error": "Google Calendar is not connected; run "
+                        "`hayden-booker calendar connect --credentials CLIENT_SECRET.json`."
+                    },
+                )
+                return
+            config, _ = load_config(self.config_path)
+            client = GoogleCalendarClient(config.calendar, zone=config.zone)
+            with _repository() as repository:
+                occurrence = repository.get(occurrence_id)
+                if occurrence.status is not AttemptStatus.CONFIRMED:
+                    self._send_json(
+                        HTTPStatus.CONFLICT,
+                        {"error": "Only confirmed bookings can be added to Google Calendar."},
+                    )
+                    return
+                if occurrence.calendar_synced_at_utc is None:
+                    try:
+                        synced = client.add_confirmed_booking(occurrence)
+                    except CalendarSyncError as exc:
+                        repository.record_calendar_sync_failure(occurrence_id, str(exc))
+                        self._send_json(HTTPStatus.BAD_GATEWAY, {"error": str(exc)})
+                        return
+                    repository.mark_calendar_synced(
+                        occurrence_id,
+                        event_id=synced.event_id,
+                        already_existed=synced.already_existed,
+                    )
+                payload = history.booking_detail(
+                    repository, occurrence_id, timezone=config.timezone
+                )
+        except KeyError:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "Unknown booking."})
+            return
+        except (SecretStoreError, ValueError) as exc:
+            self._send_json(HTTPStatus.UNPROCESSABLE_ENTITY, {"error": str(exc).splitlines()[0]})
+            return
+        except Exception as exc:  # pragma: no cover - surfaced in the dashboard banner
+            self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": f"{type(exc).__name__}"})
+            return
+        self._send_json(HTTPStatus.OK, payload)
 
     # Routing -------------------------------------------------------------------
     def _route(self, path: str) -> None:

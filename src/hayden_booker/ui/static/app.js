@@ -729,6 +729,44 @@ function acknowledgeButton(booking) {
   return button;
 }
 
+/* One click adds the event through the API when Google is connected; otherwise open Google's form. */
+function calendarAction(booking) {
+  if (booking.calendar.synced) {
+    return el("span", { className: "button calendar-added", text: "Added to Google Calendar" });
+  }
+  const connected = Boolean(state.status?.config?.calendar_connected);
+  if (!connected || booking.status !== "CONFIRMED") {
+    return el("a", {
+      className: "button primary",
+      text: "Add to Google Calendar",
+      attrs: {
+        href: booking.calendar.google_url,
+        target: "_blank",
+        rel: "noopener noreferrer",
+      },
+    });
+  }
+  const button = el("button", { className: "button primary", text: "Add to Google Calendar" });
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    button.textContent = "Adding…";
+    try {
+      const response = await fetch(`/api/bookings/${encodeURIComponent(booking.id)}/calendar`, {
+        method: "POST",
+        headers: { Accept: "application/json", "X-Hayden-Dashboard": "1" },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || `${response.status} ${response.statusText}`);
+      $("drawer-body").replaceChildren(...renderDetail(result));
+      refresh();
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = `Retry — ${error.message}`;
+    }
+  });
+  return button;
+}
+
 function renderDetail(booking) {
   const head = el("div", { className: "drawer-head" }, [
     el("div", {}, [
@@ -747,20 +785,8 @@ function renderDetail(booking) {
     })(),
   ]);
 
-  const googleAction = booking.calendar.synced
-    ? el("span", { className: "button calendar-added", text: "Added to Google Calendar" })
-    : el("a", {
-        className: "button primary",
-        text: "Add to Google Calendar",
-        attrs: {
-          href: booking.calendar.google_url,
-          target: "_blank",
-          rel: "noopener noreferrer",
-        },
-      });
-
   const actions = el("div", { className: "detail-actions" }, [
-    googleAction,
+    calendarAction(booking),
     el("a", {
       className: "button",
       text: "Download .ics",
