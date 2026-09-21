@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "count": 25,
+  "count": 26,
   "bookings": [
     {
       "id": "3fcf8ca8-8379-46a7-8350-842a49e73344",
@@ -450,6 +450,24 @@
       "created_at_utc": "2026-09-17T07:01:18.406468Z",
       "confirmed_at_utc": "2026-09-17T07:01:40.530914Z",
       "logged_at_utc": "2026-09-17T07:01:40.530914Z",
+      "error_code": null
+    },
+    {
+      "id": "e3d2710a-5dd5-4e7c-83ce-149f35679980",
+      "schedule_id": "monday-2pm",
+      "target_date": "2026-09-28",
+      "weekday": "Monday",
+      "start_time": "15:30",
+      "end_time": "19:30",
+      "duration_minutes": 240,
+      "room": "Study Room C38",
+      "status": "CONFIRMED",
+      "outcome": "confirmed",
+      "attempt_count": 1,
+      "timezone": "America/Phoenix",
+      "created_at_utc": "2026-09-21T07:01:19.589498Z",
+      "confirmed_at_utc": "2026-09-21T07:01:43.093905Z",
+      "logged_at_utc": "2026-09-21T07:01:43.093905Z",
       "error_code": null
     }
   ]
